@@ -1,0 +1,37 @@
+random_seed: 42
+
+dataset:
+  split:
+    validation_fraction: 0.1
+    test_fraction: 0.1
+    min_interactions_per_user: 10
+
+target:
+  positive_rating_threshold: 8
+
+retrievers:
+  explicit_svd:
+    min_item_explicit_ratings: 5
+    n_factors: 64
+    n_epochs: 15
+    biased: true
+    learning_rate: 0.015
+    regularization: 0.10
+    init_mean: 0.0
+    init_std_dev: 0.1
+
+implicit_als:
+    signal_confidences:
+      rating_8_10: 2.0
+      watching: 1.0
+      rewatching: 1.0
+      completed: 0.5
+      planned: 0.5
+      on_hold: 0.0
+      rating_4_5: -1.0
+      rating_1_3: -2.0
+
+    factors: 96
+    regularization: 0.1
+    alpha: 1.0
+    iterations: 40
