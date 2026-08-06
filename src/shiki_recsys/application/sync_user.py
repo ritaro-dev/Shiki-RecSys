@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -70,7 +70,7 @@ def sync_user(
         allowed_anime_ids=allowed_anime_ids,
     )
 
-    synced_at = datetime.now(timezone.utc)
+    synced_at = datetime.now(UTC)
 
     # Замена истории и обновление времени
     # синхронизации выполняются атомарно.

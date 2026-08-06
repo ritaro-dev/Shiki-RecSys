@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pandas as pd
 import pytest
@@ -112,7 +112,7 @@ def test_prepare_interactions_rejects_invalid_types():
             "anime_id": 10,
             "rating": 8,
             "status": "completed",
-            "updated_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(UTC),
         },
     ]
 

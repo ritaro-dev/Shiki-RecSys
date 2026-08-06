@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -98,7 +98,7 @@ def _parse_updated_at(
     if parsed_datetime.tzinfo is None:
         return None
 
-    return parsed_datetime.astimezone(timezone.utc)
+    return parsed_datetime.astimezone(UTC)
 
 
 def normalize_user_history(

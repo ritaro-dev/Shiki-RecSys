@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from shiki_recsys.ingestion.normalization import (
@@ -118,7 +118,7 @@ def test_normalize_user_history() -> None:
             2,
             12,
             30,
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         ),
     }
 
@@ -130,5 +130,5 @@ def test_normalize_user_history() -> None:
         2,
         12,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )

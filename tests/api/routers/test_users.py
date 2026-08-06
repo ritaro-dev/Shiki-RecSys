@@ -1,5 +1,5 @@
 from contextlib import nullcontext
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from fastapi import FastAPI
@@ -27,7 +27,7 @@ CREATED_AT = datetime(
     3,
     10,
     0,
-    tzinfo=timezone.utc,
+    tzinfo=UTC,
 )
 
 

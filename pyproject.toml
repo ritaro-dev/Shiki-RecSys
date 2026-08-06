@@ -6,11 +6,37 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "shiki-recsys"
 version = "0.1.0"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
+
+dependencies = [
+    "alembic==1.18.5",
+    "fastapi==0.139.2",
+    "implicit==0.7.3",
+    "numpy==2.5.1",
+    "pandas==3.0.3",
+    "psycopg2-binary==2.9.12",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.14.2",
+    "PyYAML==6.0.3",
+    "requests==2.34.2",
+    "scikit-surprise==1.1.5",
+    "scipy==1.18.0",
+    "SQLAlchemy==2.0.51",
+    "uvicorn==0.52.1",
+]
+
+
+[project.optional-dependencies]
+dev = [
+    "httpx2==2.9.1",
+    "pytest==9.1.1",
+    "ruff==0.16.1",
+]
 
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
