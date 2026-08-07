@@ -177,6 +177,17 @@ class ImplicitALSConfig(BaseModel):
     )
 
 
+class ContentTFIDFConfig(BaseModel):
+    """Содержит параметры TF-IDF content retriever."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+    )
+
+    max_positive_items: int = Field(gt=0)
+
+
 class RetrieversConfig(BaseModel):
     """Хранит конфигурации retriever-моделей."""
 
@@ -187,6 +198,7 @@ class RetrieversConfig(BaseModel):
 
     explicit_svd: ExplicitSVDConfig
     implicit_als: ImplicitALSConfig
+    content_tfidf: ContentTFIDFConfig
 
 
 class TrainingConfig(BaseModel):
