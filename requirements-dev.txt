@@ -42,15 +42,20 @@ implicit==0.7.3
 iniconfig==2.3.0
     # via pytest
 joblib==1.5.3
-    # via scikit-surprise
+    # via
+    #   scikit-learn
+    #   scikit-surprise
 mako==1.4.1
     # via alembic
 markupsafe==3.0.3
     # via mako
+narwhals==2.24.0
+    # via scikit-learn
 numpy==2.5.1
     # via
     #   implicit
     #   pandas
+    #   scikit-learn
     #   scikit-surprise
     #   scipy
     #   shiki-recsys (pyproject.toml)
@@ -85,11 +90,14 @@ requests==2.34.2
     # via shiki-recsys (pyproject.toml)
 ruff==0.16.1
     # via shiki-recsys (pyproject.toml)
+scikit-learn==1.9.0
+    # via shiki-recsys (pyproject.toml)
 scikit-surprise==1.1.5
     # via shiki-recsys (pyproject.toml)
 scipy==1.18.0
     # via
     #   implicit
+    #   scikit-learn
     #   scikit-surprise
     #   shiki-recsys (pyproject.toml)
 six==1.17.0
@@ -101,7 +109,9 @@ sqlalchemy==2.0.51
 starlette==1.4.1
     # via fastapi
 threadpoolctl==3.6.0
-    # via implicit
+    # via
+    #   implicit
+    #   scikit-learn
 tqdm==4.70.0
     # via implicit
 truststore==0.10.4
