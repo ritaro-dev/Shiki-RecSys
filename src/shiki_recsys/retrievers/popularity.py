@@ -1,6 +1,12 @@
 import numpy as np
 import pandas as pd
 
+from shiki_recsys.retrievers.common import (
+    RetrieverName,
+    build_candidate_frame,
+    validate_candidate_count,
+)
+
 
 class PopularityRetriever:
     """Ранжирует аниме по числу положительных train-оценок."""
@@ -135,25 +141,13 @@ class PopularityRetriever:
             .reset_index(drop=True)
         )
 
-        candidates = pd.DataFrame(
-            {
-                "anime_id": (popularity_statistics["anime_id"].astype("int64")),
-                "score": (popularity_statistics["positive_ratings"].astype("float64")),
-                "source": pd.Series(
-                    "popularity",
-                    index=popularity_statistics.index,
-                    dtype="string",
-                ),
-                "source_rank": np.arange(
-                    1,
-                    len(popularity_statistics) + 1,
-                    dtype=np.int32,
-                ),
-            }
+        candidates = build_candidate_frame(
+            anime_ids=popularity_statistics["anime_id"].to_numpy(),
+            scores=popularity_statistics["positive_ratings"].to_numpy(),
+            source=RetrieverName.POPULARITY,
         )
 
         self._candidates = candidates
-
         self._supported_anime_ids = frozenset(candidates["anime_id"].tolist())
 
         return self
@@ -181,8 +175,7 @@ class PopularityRetriever:
 
         self._require_fitted()
 
-        if candidate_count is not None and candidate_count <= 0:
-            raise ValueError("candidate_count должен быть больше 0 или равен None.")
+        validate_candidate_count(candidate_count)
 
         assert self._candidates is not None
 

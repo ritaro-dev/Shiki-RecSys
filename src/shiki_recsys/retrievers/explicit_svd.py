@@ -5,6 +5,13 @@ import pandas as pd
 from surprise import SVD, Dataset, Reader
 from surprise.trainset import Trainset
 
+from shiki_recsys.retrievers.common import (
+    RetrieverName,
+    build_candidate_frame,
+    empty_candidates,
+    validate_candidate_count,
+)
+
 
 class ExplicitSVDRetriever:
     """Формирует персональные кандидаты по явным оценкам."""
@@ -217,8 +224,7 @@ class ExplicitSVDRetriever:
         """
         self._require_fitted()
 
-        if candidate_count is not None and candidate_count <= 0:
-            raise ValueError("candidate_count должен быть больше 0 или равен None.")
+        validate_candidate_count(candidate_count)
 
         assert self._model is not None
         assert self._trainset is not None
@@ -226,7 +232,7 @@ class ExplicitSVDRetriever:
         try:
             inner_user_id = self._trainset.to_inner_uid(user_id)
         except ValueError:
-            return self._empty_candidates()
+            return empty_candidates()
 
         item_inner_ids = np.arange(
             self._trainset.n_items,
@@ -252,11 +258,11 @@ class ExplicitSVDRetriever:
             count=self._trainset.n_items,
         )
 
-        candidates = (
+        ranked_items = (
             pd.DataFrame(
                 {
                     "anime_id": anime_ids,
-                    "score": scores.astype("float64"),
+                    "score": scores,
                 }
             )
             .sort_values(
@@ -273,30 +279,12 @@ class ExplicitSVDRetriever:
             .reset_index(drop=True)
         )
 
-        candidates["source"] = pd.Series(
-            "explicit_svd",
-            index=candidates.index,
-            dtype="string",
+        return build_candidate_frame(
+            anime_ids=ranked_items["anime_id"].to_numpy(),
+            scores=ranked_items["score"].to_numpy(),
+            source=RetrieverName.EXPLICIT_SVD,
+            candidate_count=candidate_count,
         )
-        candidates["source_rank"] = np.arange(
-            1,
-            len(candidates) + 1,
-            dtype=np.int32,
-        )
-
-        candidates = candidates[
-            [
-                "anime_id",
-                "score",
-                "source",
-                "source_rank",
-            ]
-        ]
-
-        if candidate_count is not None:
-            candidates = candidates.head(candidate_count)
-
-        return candidates.copy().reset_index(drop=True)
 
     def _require_fitted(self) -> None:
         """
@@ -307,20 +295,3 @@ class ExplicitSVDRetriever:
         """
         if self._model is None or self._trainset is None:
             raise RuntimeError("ExplicitSVDRetriever ещё не обучен.")
-
-    @staticmethod
-    def _empty_candidates() -> pd.DataFrame:
-        """
-        Создаёт пустую таблицу кандидатов.
-
-        Returns:
-            Пустую таблицу стандартного формата.
-        """
-        return pd.DataFrame(
-            {
-                "anime_id": pd.Series(dtype="int64"),
-                "score": pd.Series(dtype="float64"),
-                "source": pd.Series(dtype="string"),
-                "source_rank": pd.Series(dtype="int32"),
-            }
-        )

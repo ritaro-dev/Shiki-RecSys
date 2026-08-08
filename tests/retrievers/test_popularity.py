@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
+from shiki_recsys.retrievers.common import RetrieverName
 from shiki_recsys.retrievers.popularity import (
     PopularityRetriever,
 )
@@ -204,11 +205,11 @@ def test_fit_builds_expected_popularity_ranking() -> None:
             ),
             "source": pd.Series(
                 [
-                    "popularity",
-                    "popularity",
-                    "popularity",
-                    "popularity",
-                    "popularity",
+                    RetrieverName.POPULARITY.value,
+                    RetrieverName.POPULARITY.value,
+                    RetrieverName.POPULARITY.value,
+                    RetrieverName.POPULARITY.value,
+                    RetrieverName.POPULARITY.value,
                 ],
                 dtype="string",
             ),

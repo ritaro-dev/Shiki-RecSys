@@ -4,6 +4,7 @@ from collections.abc import Callable
 import pandas as pd
 import pytest
 
+from shiki_recsys.retrievers.common import RetrieverName
 from shiki_recsys.retrievers.explicit_svd import (
     ExplicitSVDRetriever,
 )
@@ -287,8 +288,8 @@ def test_retrieve_returns_ranked_candidates_for_known_user(
     assert candidates["score"].is_monotonic_decreasing
 
     assert candidates["source"].tolist() == [
-        "explicit_svd",
-        "explicit_svd",
+        RetrieverName.EXPLICIT_SVD.value,
+        RetrieverName.EXPLICIT_SVD.value,
     ]
 
     assert candidates["source_rank"].tolist() == [

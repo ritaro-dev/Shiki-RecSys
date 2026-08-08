@@ -4,6 +4,7 @@ from scipy.sparse import csr_matrix
 
 from shiki_recsys.features.content_items import ContentItemFeatures
 from shiki_recsys.features.content_users import ContentUserProfiles
+from shiki_recsys.retrievers.common import RetrieverName
 from shiki_recsys.retrievers.content_tfidf import ContentTFIDFRetriever
 
 
@@ -190,9 +191,9 @@ def test_retrieve_returns_ranked_candidates_for_known_user(
     )
 
     assert candidates["source"].tolist() == [
-        "content_tfidf",
-        "content_tfidf",
-        "content_tfidf",
+        RetrieverName.CONTENT_TFIDF.value,
+        RetrieverName.CONTENT_TFIDF.value,
+        RetrieverName.CONTENT_TFIDF.value,
     ]
 
     assert candidates["source_rank"].tolist() == [

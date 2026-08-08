@@ -5,6 +5,7 @@ from pandas.testing import assert_frame_equal
 from shiki_recsys.inference.candidate_filtering import (
     exclude_known_candidates,
 )
+from shiki_recsys.retrievers.common import RetrieverName
 
 
 def test_exclude_known_candidates_preserves_order_and_columns() -> None:
@@ -20,10 +21,10 @@ def test_exclude_known_candidates_preserves_order_and_columns() -> None:
             ),
             "source": pd.Series(
                 [
-                    "popularity",
-                    "popularity",
-                    "popularity",
-                    "popularity",
+                    RetrieverName.POPULARITY.value,
+                    RetrieverName.POPULARITY.value,
+                    RetrieverName.POPULARITY.value,
+                    RetrieverName.POPULARITY.value,
                 ],
                 dtype="string",
             ),
@@ -51,8 +52,8 @@ def test_exclude_known_candidates_preserves_order_and_columns() -> None:
             ),
             "source": pd.Series(
                 [
-                    "popularity",
-                    "popularity",
+                    RetrieverName.POPULARITY.value,
+                    RetrieverName.POPULARITY.value,
                 ],
                 dtype="string",
             ),

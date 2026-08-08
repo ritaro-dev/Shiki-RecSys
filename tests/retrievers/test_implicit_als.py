@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from shiki_recsys.retrievers.common import RetrieverName
 from shiki_recsys.retrievers.implicit_als import (
     ImplicitALSRetriever,
 )
@@ -275,9 +276,9 @@ def test_retrieve_returns_ranked_candidates_for_known_user(
     assert np.isfinite(candidates["score"]).all()
 
     assert candidates["source"].tolist() == [
-        "implicit_als",
-        "implicit_als",
-        "implicit_als",
+        RetrieverName.IMPLICIT_ALS.value,
+        RetrieverName.IMPLICIT_ALS.value,
+        RetrieverName.IMPLICIT_ALS.value,
     ]
 
     assert candidates["source_rank"].tolist() == [

@@ -3,6 +3,13 @@ import pandas as pd
 from implicit.als import AlternatingLeastSquares
 from scipy.sparse import csr_matrix
 
+from shiki_recsys.retrievers.common import (
+    RetrieverName,
+    build_candidate_frame,
+    empty_candidates,
+    validate_candidate_count,
+)
+
 
 class ImplicitALSRetriever:
     """Формирует персональные кандидаты с помощью implicit ALS."""
@@ -219,23 +226,22 @@ class ImplicitALSRetriever:
         """
         self._require_fitted()
 
-        if candidate_count is not None and candidate_count <= 0:
-            raise ValueError("candidate_count должен быть больше 0 или равен None.")
+        validate_candidate_count(candidate_count)
 
         inner_user_id = self._user_to_inner.get(user_id)
 
         if inner_user_id is None:
-            return self._empty_candidates()
+            return empty_candidates()
 
         assert self._model is not None
 
         scores = self._model.item_factors @ self._model.user_factors[inner_user_id]
 
-        candidates = (
+        ranked_items = (
             pd.DataFrame(
                 {
                     "anime_id": self._raw_anime_ids,
-                    "score": scores.astype("float64"),
+                    "score": scores,
                 }
             )
             .sort_values(
@@ -252,31 +258,12 @@ class ImplicitALSRetriever:
             .reset_index(drop=True)
         )
 
-        candidates["source"] = pd.Series(
-            "implicit_als",
-            index=candidates.index,
-            dtype="string",
+        return build_candidate_frame(
+            anime_ids=ranked_items["anime_id"].to_numpy(),
+            scores=ranked_items["score"].to_numpy(),
+            source=RetrieverName.IMPLICIT_ALS,
+            candidate_count=candidate_count,
         )
-
-        candidates["source_rank"] = np.arange(
-            1,
-            len(candidates) + 1,
-            dtype=np.int32,
-        )
-
-        candidates = candidates[
-            [
-                "anime_id",
-                "score",
-                "source",
-                "source_rank",
-            ]
-        ]
-
-        if candidate_count is not None:
-            candidates = candidates.head(candidate_count)
-
-        return candidates.copy().reset_index(drop=True)
 
     def _require_fitted(self) -> None:
         """
@@ -287,20 +274,3 @@ class ImplicitALSRetriever:
         """
         if self._model is None:
             raise RuntimeError("ImplicitALSRetriever ещё не обучен.")
-
-    @staticmethod
-    def _empty_candidates() -> pd.DataFrame:
-        """
-        Создаёт пустую таблицу кандидатов.
-
-        Returns:
-            Пустую таблицу стандартного формата.
-        """
-        return pd.DataFrame(
-            {
-                "anime_id": pd.Series(dtype="int64"),
-                "score": pd.Series(dtype="float64"),
-                "source": pd.Series(dtype="string"),
-                "source_rank": pd.Series(dtype="int32"),
-            }
-        )
