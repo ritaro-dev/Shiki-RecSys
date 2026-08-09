@@ -325,3 +325,22 @@ def test_score_items_returns_scores_in_requested_order(
     )
 
     assert np.isnan(unknown_user_scores).all()
+
+
+def test_supports_user_rejects_call_before_fit() -> None:
+    """Проверяет запрет проверки пользователя до обучения."""
+    retriever = ContentTFIDFRetriever()
+
+    with pytest.raises(
+        RuntimeError,
+        match="ещё не обучен",
+    ):
+        retriever.supports_user(1)
+
+
+def test_supports_user_checks_existing_profile(
+    fitted_retriever: ContentTFIDFRetriever,
+) -> None:
+    """Проверяет наличие content-профиля пользователя."""
+    assert fitted_retriever.supports_user(1)
+    assert not fitted_retriever.supports_user(999)

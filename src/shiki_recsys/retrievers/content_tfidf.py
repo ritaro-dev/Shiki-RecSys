@@ -37,6 +37,24 @@ class ContentTFIDFRetriever:
         self._require_fitted()
         return self._supported_anime_ids
 
+    def supports_user(self, user_id: int) -> bool:
+        """
+        Проверяет поддержку пользователя retriever-ом.
+
+        Args:
+            user_id: Идентификатор пользователя.
+
+        Returns:
+            True, если для пользователя существует content-профиль.
+
+        Raises:
+            RuntimeError: Если retriever ещё не обучен.
+        """
+        self._require_fitted()
+
+        assert self._user_profiles is not None
+        return user_id in self._user_profiles.user_to_inner
+
     def fit(
         self,
         item_features: ContentItemFeatures,
