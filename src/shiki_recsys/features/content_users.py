@@ -185,9 +185,13 @@ def build_content_profile(
         L2-нормализованный content-профиль размерности 1 x n_features.
     """
     positive_interactions = (
-        interactions.loc[
-            (interactions["rating"] >= relevance_threshold)
-            & interactions["anime_id"].isin(item_features.anime_to_inner),
+        _select_supported_positive_interactions(
+            interactions,
+            item_features,
+            relevance_threshold=relevance_threshold,
+        )
+        .loc[
+            :,
             [
                 "anime_id",
                 "updated_at",
@@ -224,3 +228,43 @@ def build_content_profile(
         norm="l2",
         axis=1,
     ).tocsr()
+
+
+def count_supported_positive_items(
+    interactions: pd.DataFrame,
+    item_features: ContentItemFeatures,
+    *,
+    relevance_threshold: float,
+) -> int:
+    """
+    Считает положительные anime, поддерживаемые content artifact.
+
+    Args:
+        interactions: Подготовленные взаимодействия пользователя.
+        item_features: Content-представление каталога.
+        relevance_threshold: Минимальная положительная оценка.
+
+    Returns:
+        Число поддерживаемых положительных anime.
+    """
+    positive_interactions = _select_supported_positive_interactions(
+        interactions,
+        item_features,
+        relevance_threshold=relevance_threshold,
+    )
+
+    return len(positive_interactions)
+
+
+def _select_supported_positive_interactions(
+    interactions: pd.DataFrame,
+    item_features: ContentItemFeatures,
+    *,
+    relevance_threshold: float,
+) -> pd.DataFrame:
+    """Выбирает положительные взаимодействия из текущего content artifact."""
+
+    return interactions.loc[
+        (interactions["rating"] >= relevance_threshold)
+        & interactions["anime_id"].isin(item_features.anime_to_inner)
+    ]

@@ -10,6 +10,7 @@ from shiki_recsys.features.content_items import ContentItemFeatures
 from shiki_recsys.features.content_users import (
     build_content_profile,
     build_content_user_profiles,
+    count_supported_positive_items,
 )
 
 
@@ -601,3 +602,41 @@ def test_build_content_profile_returns_zero_profile_without_supported_positive_i
     assert profile.format == "csr"
     assert profile.dtype == np.float32
     assert profile.nnz == 0
+
+
+def test_count_supported_positive_items() -> None:
+    """Считает только positive items из текущего content artifact."""
+    item_features = ContentItemFeatures(
+        item_feature_matrix=csr_matrix(
+            np.eye(
+                2,
+                dtype=np.float32,
+            )
+        ),
+        raw_anime_ids=np.array(
+            [10, 20],
+            dtype=np.int64,
+        ),
+        anime_to_inner={
+            10: 0,
+            20: 1,
+        },
+    )
+
+    interactions = pd.DataFrame(
+        {
+            "anime_id": [10, 20, 30],
+            "rating": pd.Series(
+                [8, 7, 10],
+                dtype="float32",
+            ),
+        }
+    )
+
+    result = count_supported_positive_items(
+        interactions,
+        item_features,
+        relevance_threshold=8,
+    )
+
+    assert result == 1
