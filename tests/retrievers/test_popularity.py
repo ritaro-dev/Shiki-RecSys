@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
@@ -340,3 +341,54 @@ def test_retrieve_returns_independent_copy() -> None:
         ]
         == 1
     )
+
+
+def test_retrieve_excludes_anime_before_candidate_limit() -> None:
+    """Проверяет исключение аниме до ограничения выдачи."""
+
+    interactions = pd.DataFrame(
+        {
+            "anime_id": [1, 2, 3],
+            "rating": [10, 9, 8],
+        }
+    )
+
+    retriever = PopularityRetriever(
+        relevance_threshold=8,
+    ).fit(interactions)
+
+    candidates = retriever.retrieve(
+        candidate_count=2,
+        exclude_anime_ids={1},
+    )
+
+    assert candidates["anime_id"].tolist() == [2, 3]
+    assert candidates["source_rank"].tolist() == [1, 2]
+
+
+def test_score_items_returns_scores_in_requested_order() -> None:
+    """Проверяет scores заданных аниме и неподдерживаемые объекты."""
+
+    interactions = pd.DataFrame(
+        {
+            "anime_id": [10, 10, 20, 30],
+            "rating": [10, 9, 8, 7],
+        }
+    )
+
+    retriever = PopularityRetriever(
+        relevance_threshold=8,
+    ).fit(interactions)
+
+    scores = retriever.score_items(
+        anime_ids=np.array(
+            [20, 999, 10],
+            dtype=np.int64,
+        )
+    )
+
+    np.testing.assert_allclose(
+        scores[[0, 2]],
+        [1.0, 2.0],
+    )
+    assert np.isnan(scores[1])

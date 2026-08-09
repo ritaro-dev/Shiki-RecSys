@@ -1,21 +1,24 @@
+import numpy as np
 import pandas as pd
 
 from shiki_recsys.ranking.candidates import build_ranker_candidate_features
 from shiki_recsys.retrievers.common import RetrieverName, empty_candidates
 
 
-def test_build_ranker_candidate_features_merges_retriever_outputs() -> None:
-    """Проверяет объединение кандидатов и признаки retriever-ов."""
+def test_build_ranker_candidate_features_builds_retriever_features() -> None:
+    """Проверяет построение признаков retriever-ов для candidate set."""
+
+    anime_ids = np.array(
+        [10, 20, 30],
+        dtype=np.int64,
+    )
 
     popularity = pd.DataFrame(
         {
             "anime_id": pd.Series([10, 20], dtype="int64"),
             "score": pd.Series([5.0, 4.0], dtype="float64"),
             "source": pd.Series(
-                [
-                    RetrieverName.POPULARITY.value,
-                    RetrieverName.POPULARITY.value,
-                ],
+                [RetrieverName.POPULARITY.value] * 2,
                 dtype="string",
             ),
             "source_rank": pd.Series([1, 2], dtype="int32"),
@@ -27,22 +30,46 @@ def test_build_ranker_candidate_features_merges_retriever_outputs() -> None:
             "anime_id": pd.Series([20, 30], dtype="int64"),
             "score": pd.Series([9.0, 8.0], dtype="float64"),
             "source": pd.Series(
-                [
-                    RetrieverName.EXPLICIT_SVD.value,
-                    RetrieverName.EXPLICIT_SVD.value,
-                ],
+                [RetrieverName.EXPLICIT_SVD.value] * 2,
                 dtype="string",
             ),
             "source_rank": pd.Series([1, 2], dtype="int32"),
         }
     )
 
+    retriever_candidates = {
+        RetrieverName.POPULARITY: popularity,
+        RetrieverName.EXPLICIT_SVD: explicit_svd,
+        RetrieverName.IMPLICIT_ALS: empty_candidates(),
+        RetrieverName.CONTENT_TFIDF: empty_candidates(),
+    }
+
+    retriever_scores = {
+        RetrieverName.POPULARITY: np.array(
+            [5.0, 4.0, 3.0],
+            dtype=np.float64,
+        ),
+        RetrieverName.EXPLICIT_SVD: np.array(
+            [7.0, 9.0, 8.0],
+            dtype=np.float64,
+        ),
+        RetrieverName.IMPLICIT_ALS: np.full(
+            3,
+            np.nan,
+            dtype=np.float64,
+        ),
+        RetrieverName.CONTENT_TFIDF: np.full(
+            3,
+            np.nan,
+            dtype=np.float64,
+        ),
+    }
+
     features = build_ranker_candidate_features(
         user_id=7,
-        retriever_candidates={
-            RetrieverName.POPULARITY: popularity,
-            RetrieverName.EXPLICIT_SVD: explicit_svd,
-        },
+        anime_ids=anime_ids,
+        retriever_candidates=retriever_candidates,
+        retriever_scores=retriever_scores,
     )
 
     assert features["anime_id"].tolist() == [20, 10, 30]
@@ -52,10 +79,13 @@ def test_build_ranker_candidate_features_merges_retriever_outputs() -> None:
 
     assert by_anime.loc[10, "from_popularity"] == 1
     assert by_anime.loc[10, "from_explicit_svd"] == 0
+
     assert by_anime.loc[10, "score_popularity"] == 5.0
-    assert pd.isna(by_anime.loc[10, "score_explicit_svd"])
+    assert by_anime.loc[10, "score_explicit_svd"] == 7.0
+
     assert by_anime.loc[10, "rank_popularity"] == 1
     assert pd.isna(by_anime.loc[10, "rank_explicit_svd"])
+
     assert by_anime.loc[10, "rr_popularity"] == 1.0
     assert by_anime.loc[10, "rr_explicit_svd"] == 0.0
 
@@ -68,13 +98,24 @@ def test_build_ranker_candidate_features_merges_retriever_outputs() -> None:
     assert by_anime.loc[30, "retriever_count"] == 1
     assert by_anime.loc[30, "best_rank"] == 2
 
+    assert by_anime.loc[30, "score_popularity"] == 3.0
+    assert by_anime.loc[30, "from_popularity"] == 0
+    assert pd.isna(by_anime.loc[30, "rank_popularity"])
+
 
 def test_build_ranker_candidate_features_returns_stable_empty_frame() -> None:
-    """Проверяет схему признаков при отсутствии кандидатов."""
+    """Проверяет схему признаков при пустом candidate set."""
+
+    retriever_candidates = {source: empty_candidates() for source in RetrieverName}
+    retriever_scores = {
+        source: np.array([], dtype=np.float64) for source in RetrieverName
+    }
 
     features = build_ranker_candidate_features(
         user_id=7,
-        retriever_candidates={},
+        anime_ids=np.array([], dtype=np.int64),
+        retriever_candidates=retriever_candidates,
+        retriever_scores=retriever_scores,
     )
 
     expected_columns = [
@@ -107,35 +148,20 @@ def test_build_ranker_candidate_features_returns_stable_empty_frame() -> None:
     assert features.columns.tolist() == expected_columns
 
 
-def test_build_ranker_candidate_features_handles_empty_retriever_output() -> None:
-    """Проверяет обработку пустой выдачи retriever-а."""
-
-    features = build_ranker_candidate_features(
-        user_id=7,
-        retriever_candidates={
-            RetrieverName.CONTENT_TFIDF: empty_candidates(),
-        },
-    )
-
-    assert features.empty
-    assert "score_content_tfidf" in features.columns
-    assert "rank_content_tfidf" in features.columns
-    assert "from_content_tfidf" in features.columns
-    assert "rr_content_tfidf" in features.columns
-
-
 def test_build_ranker_candidate_features_uses_rr_sum_as_tiebreak() -> None:
     """Проверяет rr_sum как tie-break при одинаковом best_rank."""
+
+    anime_ids = np.array(
+        [10, 20],
+        dtype=np.int64,
+    )
 
     popularity = pd.DataFrame(
         {
             "anime_id": pd.Series([10, 20], dtype="int64"),
             "score": pd.Series([5.0, 4.0], dtype="float64"),
             "source": pd.Series(
-                [
-                    RetrieverName.POPULARITY.value,
-                    RetrieverName.POPULARITY.value,
-                ],
+                [RetrieverName.POPULARITY.value] * 2,
                 dtype="string",
             ),
             "source_rank": pd.Series([1, 2], dtype="int32"),
@@ -147,22 +173,33 @@ def test_build_ranker_candidate_features_uses_rr_sum_as_tiebreak() -> None:
             "anime_id": pd.Series([20, 10], dtype="int64"),
             "score": pd.Series([9.0, 8.0], dtype="float64"),
             "source": pd.Series(
-                [
-                    RetrieverName.EXPLICIT_SVD.value,
-                    RetrieverName.EXPLICIT_SVD.value,
-                ],
+                [RetrieverName.EXPLICIT_SVD.value] * 2,
                 dtype="string",
             ),
             "source_rank": pd.Series([1, 3], dtype="int32"),
         }
     )
 
+    retriever_candidates = {
+        RetrieverName.POPULARITY: popularity,
+        RetrieverName.EXPLICIT_SVD: explicit_svd,
+        RetrieverName.IMPLICIT_ALS: empty_candidates(),
+        RetrieverName.CONTENT_TFIDF: empty_candidates(),
+    }
+
+    retriever_scores = {
+        source: np.zeros(
+            len(anime_ids),
+            dtype=np.float64,
+        )
+        for source in RetrieverName
+    }
+
     features = build_ranker_candidate_features(
         user_id=7,
-        retriever_candidates={
-            RetrieverName.POPULARITY: popularity,
-            RetrieverName.EXPLICIT_SVD: explicit_svd,
-        },
+        anime_ids=anime_ids,
+        retriever_candidates=retriever_candidates,
+        retriever_scores=retriever_scores,
     )
 
     assert features["anime_id"].tolist() == [20, 10]

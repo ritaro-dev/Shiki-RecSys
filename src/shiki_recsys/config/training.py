@@ -201,6 +201,17 @@ class RetrieversConfig(BaseModel):
     content_tfidf: ContentTFIDFConfig
 
 
+class CandidateGenerationConfig(BaseModel):
+    """Хранит параметры генерации кандидатов."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+    )
+
+    retrieval_k: int = Field(gt=0)
+
+
 class TrainingConfig(BaseModel):
     """Хранит полную конфигурацию обучения системы."""
 
@@ -213,6 +224,7 @@ class TrainingConfig(BaseModel):
     dataset: DatasetConfig
     target: TargetConfig
     retrievers: RetrieversConfig
+    candidate_generation: CandidateGenerationConfig
 
 
 def load_training_config(

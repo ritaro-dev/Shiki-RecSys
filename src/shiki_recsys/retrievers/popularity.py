@@ -156,6 +156,7 @@ class PopularityRetriever:
         self,
         *,
         candidate_count: int | None = None,
+        exclude_anime_ids: set[int] | None = None,
     ) -> pd.DataFrame:
         """
         Возвращает глобально ранжированных кандидатов.
@@ -163,6 +164,8 @@ class PopularityRetriever:
         Args:
             candidate_count: Максимальное количество кандидатов.
                 Значение None означает возврат полного рейтинга.
+            exclude_anime_ids: Идентификаторы аниме,
+                исключаемые из выдачи.
 
         Returns:
             Таблицу идентификаторов, scores, источников
@@ -179,10 +182,17 @@ class PopularityRetriever:
 
         assert self._candidates is not None
 
-        if candidate_count is None:
-            return self._candidates.copy()
+        candidates = self._candidates
 
-        return self._candidates.head(candidate_count).copy().reset_index(drop=True)
+        if exclude_anime_ids:
+            candidates = candidates.loc[~candidates["anime_id"].isin(exclude_anime_ids)]
+
+        return build_candidate_frame(
+            anime_ids=candidates["anime_id"].to_numpy(),
+            scores=candidates["score"].to_numpy(),
+            source=RetrieverName.POPULARITY,
+            candidate_count=candidate_count,
+        )
 
     def _require_fitted(self) -> None:
         """
@@ -194,3 +204,25 @@ class PopularityRetriever:
 
         if self._candidates is None:
             raise RuntimeError("PopularityRetriever ещё не обучен.")
+
+    def score_items(
+        self,
+        *,
+        anime_ids: np.ndarray,
+    ) -> np.ndarray:
+        """
+        Возвращает popularity scores заданных аниме.
+
+        Args:
+            anime_ids: Идентификаторы оцениваемых аниме.
+
+        Returns:
+            Scores в порядке переданных anime_id.
+        """
+        self._require_fitted()
+
+        assert self._candidates is not None
+
+        score_by_anime = self._candidates.set_index("anime_id")["score"]
+
+        return score_by_anime.reindex(anime_ids).to_numpy(dtype=np.float64)

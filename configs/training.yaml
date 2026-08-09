@@ -38,3 +38,6 @@ retrievers:
 
   content_tfidf:
     max_positive_items: 50
+
+candidate_generation:
+  retrieval_k: 100

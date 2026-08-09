@@ -7,6 +7,7 @@ from shiki_recsys.retrievers.common import (
     RetrieverName,
     build_candidate_frame,
     empty_candidates,
+    exclude_scored_items,
     validate_candidate_count,
 )
 
@@ -57,6 +58,7 @@ class ImplicitALSRetriever:
 
         self._model: AlternatingLeastSquares | None = None
         self._user_to_inner: dict[int, int] = {}
+        self._anime_to_inner: dict[int, int] = {}
         self._raw_anime_ids = np.array(
             [],
             dtype=np.int64,
@@ -195,6 +197,7 @@ class ImplicitALSRetriever:
 
         self._model = model
         self._user_to_inner = user_to_inner
+        self._anime_to_inner = anime_to_inner
         self._raw_anime_ids = raw_anime_ids
         self._supported_anime_ids = frozenset(
             int(anime_id) for anime_id in raw_anime_ids
@@ -207,6 +210,7 @@ class ImplicitALSRetriever:
         *,
         user_id: int,
         candidate_count: int | None = None,
+        exclude_anime_ids: set[int] | None = None,
     ) -> pd.DataFrame:
         """
         Возвращает ранжированных кандидатов пользователя.
@@ -215,6 +219,8 @@ class ImplicitALSRetriever:
             user_id: Идентификатор пользователя.
             candidate_count: Максимальное количество кандидатов.
                 Значение None означает возврат полного рейтинга.
+            exclude_anime_ids: Идентификаторы аниме,
+                исключаемые из выдачи.
 
         Returns:
             Таблицу идентификаторов, scores, источников
@@ -237,10 +243,18 @@ class ImplicitALSRetriever:
 
         scores = self._model.item_factors @ self._model.user_factors[inner_user_id]
 
+        anime_ids = self._raw_anime_ids
+
+        anime_ids, scores = exclude_scored_items(
+            anime_ids,
+            scores,
+            exclude_anime_ids,
+        )
+
         ranked_items = (
             pd.DataFrame(
                 {
-                    "anime_id": self._raw_anime_ids,
+                    "anime_id": anime_ids,
                     "score": scores,
                 }
             )
@@ -274,3 +288,58 @@ class ImplicitALSRetriever:
         """
         if self._model is None:
             raise RuntimeError("ImplicitALSRetriever ещё не обучен.")
+
+    def score_items(
+        self,
+        *,
+        user_id: int,
+        anime_ids: np.ndarray,
+    ) -> np.ndarray:
+        """
+        Рассчитывает ALS scores для заданных аниме.
+
+        Args:
+            user_id: Идентификатор пользователя.
+            anime_ids: Идентификаторы оцениваемых аниме.
+
+        Returns:
+            Scores в порядке переданных anime_id.
+        """
+        self._require_fitted()
+
+        scores = np.full(
+            len(anime_ids),
+            np.nan,
+            dtype=np.float64,
+        )
+
+        inner_user_id = self._user_to_inner.get(user_id)
+
+        if inner_user_id is None:
+            return scores
+
+        assert self._model is not None
+
+        supported_positions = [
+            position
+            for position, anime_id in enumerate(anime_ids)
+            if int(anime_id) in self._anime_to_inner
+        ]
+
+        if not supported_positions:
+            return scores
+
+        inner_anime_ids = np.array(
+            [
+                self._anime_to_inner[int(anime_ids[position])]
+                for position in supported_positions
+            ],
+            dtype=np.int64,
+        )
+
+        scores[supported_positions] = (
+            self._model.item_factors[inner_anime_ids]
+            @ self._model.user_factors[inner_user_id]
+        )
+
+        return scores

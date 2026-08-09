@@ -268,3 +268,60 @@ def test_retrieve_returns_typed_empty_frame_for_unknown_user(
     assert candidates["score"].dtype == "float64"
     assert candidates["source"].dtype == "string"
     assert candidates["source_rank"].dtype == "int32"
+
+
+def test_retrieve_excludes_anime_before_candidate_limit(
+    fitted_retriever: ContentTFIDFRetriever,
+) -> None:
+    """Проверяет исключение аниме до ограничения выдачи."""
+
+    candidates = fitted_retriever.retrieve(
+        user_id=1,
+        candidate_count=2,
+        exclude_anime_ids={30},
+    )
+
+    assert candidates["anime_id"].tolist() == [
+        20,
+        10,
+    ]
+    assert candidates["source_rank"].tolist() == [
+        1,
+        2,
+    ]
+
+
+def test_score_items_returns_scores_in_requested_order(
+    fitted_retriever: ContentTFIDFRetriever,
+) -> None:
+    """Проверяет scores заданных аниме и неподдерживаемые объекты."""
+
+    full_candidates = fitted_retriever.retrieve(user_id=1).set_index("anime_id")[
+        "score"
+    ]
+
+    anime_ids = np.array(
+        [20, 999, 30],
+        dtype=np.int64,
+    )
+
+    scores = fitted_retriever.score_items(
+        user_id=1,
+        anime_ids=anime_ids,
+    )
+
+    np.testing.assert_allclose(
+        scores[[0, 2]],
+        [
+            full_candidates.loc[20],
+            full_candidates.loc[30],
+        ],
+    )
+    assert np.isnan(scores[1])
+
+    unknown_user_scores = fitted_retriever.score_items(
+        user_id=999,
+        anime_ids=anime_ids,
+    )
+
+    assert np.isnan(unknown_user_scores).all()

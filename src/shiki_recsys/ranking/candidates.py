@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 
+import numpy as np
 import pandas as pd
 
 from shiki_recsys.retrievers.common import RetrieverName
@@ -7,39 +8,30 @@ from shiki_recsys.retrievers.common import RetrieverName
 
 def build_ranker_candidate_features(
     user_id: int,
+    anime_ids: np.ndarray,
     retriever_candidates: Mapping[RetrieverName, pd.DataFrame],
+    retriever_scores: Mapping[RetrieverName, np.ndarray],
 ) -> pd.DataFrame:
     """
-    Формирует признаки ranker-а из выдач retriever-ов.
+    Формирует признаки кандидатов для ranker-а.
 
     Args:
         user_id: Идентификатор пользователя.
-        retriever_candidates: Кандидаты отдельных retriever-ов.
+        anime_ids: Anime общего candidate set.
+        retriever_candidates: Top-K кандидаты retriever-ов.
+        retriever_scores: Scores retriever-ов для candidate set.
 
     Returns:
-        Таблицу кандидатов с признаками источников.
+        Таблицу кандидатов с признаками retriever-ов.
     """
-    anime_id_parts = [
-        candidates["anime_id"] for candidates in retriever_candidates.values()
-    ]
-
-    if anime_id_parts:
-        anime_ids = (
-            pd.concat(
-                anime_id_parts,
-                ignore_index=True,
-            )
-            .drop_duplicates()
-            .astype("int64")
-        )
-    else:
-        anime_ids = pd.Series(dtype="int64")
-
     features = pd.DataFrame(
         {
-            "anime_id": anime_ids,
+            "anime_id": pd.Series(
+                anime_ids,
+                dtype="int64",
+            ),
         }
-    ).reset_index(drop=True)
+    )
 
     rank_columns = []
     from_columns = []
@@ -57,43 +49,22 @@ def build_ranker_candidate_features(
         from_columns.append(from_column)
         rr_columns.append(rr_column)
 
-        candidates = retriever_candidates.get(source)
+        features[score_column] = retriever_scores[source]
 
-        if candidates is None:
-            features[score_column] = pd.Series(
-                float("nan"),
-                index=features.index,
-                dtype="float64",
+        source_features = (
+            retriever_candidates[source]
+            .loc[
+                :,
+                [
+                    "anime_id",
+                    "source_rank",
+                ],
+            ]
+            .rename(
+                columns={
+                    "source_rank": rank_column,
+                }
             )
-            features[rank_column] = pd.Series(
-                float("nan"),
-                index=features.index,
-                dtype="float64",
-            )
-            features[from_column] = pd.Series(
-                0,
-                index=features.index,
-                dtype="int8",
-            )
-            features[rr_column] = pd.Series(
-                0.0,
-                index=features.index,
-                dtype="float64",
-            )
-            continue
-
-        source_features = candidates.loc[
-            :,
-            [
-                "anime_id",
-                "score",
-                "source_rank",
-            ],
-        ].rename(
-            columns={
-                "score": score_column,
-                "source_rank": rank_column,
-            }
         )
 
         source_features[rank_column] = source_features[rank_column].astype("float64")

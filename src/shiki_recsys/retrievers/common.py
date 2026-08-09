@@ -100,3 +100,33 @@ def build_candidate_frame(
         candidates = candidates.head(candidate_count)
 
     return candidates.copy().reset_index(drop=True)
+
+
+def exclude_scored_items(
+    anime_ids: np.ndarray,
+    scores: np.ndarray,
+    exclude_anime_ids: set[int] | None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Исключает заданные аниме из рассчитанных scores.
+
+    Args:
+        anime_ids: Идентификаторы оценённых аниме.
+        scores: Scores аниме в том же порядке.
+        exclude_anime_ids: Идентификаторы исключаемых аниме.
+
+    Returns:
+        Отфильтрованные идентификаторы и scores.
+    """
+    if not exclude_anime_ids:
+        return anime_ids, scores
+
+    available_mask = ~np.isin(
+        anime_ids,
+        list(exclude_anime_ids),
+    )
+
+    return (
+        anime_ids[available_mask],
+        scores[available_mask],
+    )
