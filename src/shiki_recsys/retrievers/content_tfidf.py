@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from scipy.sparse import csr_matrix
 
 from shiki_recsys.features.content_items import ContentItemFeatures
 from shiki_recsys.features.content_users import ContentUserProfiles
@@ -36,6 +37,89 @@ class ContentTFIDFRetriever:
         """
         self._require_fitted()
         return self._supported_anime_ids
+
+    @property
+    def item_features(self) -> ContentItemFeatures:
+        """
+        Возвращает content-представление каталога.
+
+        Returns:
+            Content-признаки текущего artifact.
+
+        Raises:
+            RuntimeError: Если retriever ещё не обучен.
+        """
+        self._require_fitted()
+
+        assert self._item_features is not None
+        return self._item_features
+
+    def retrieve_from_profile(
+        self,
+        *,
+        profile: csr_matrix,
+        candidate_count: int | None = None,
+        exclude_anime_ids: set[int] | None = None,
+    ) -> pd.DataFrame:
+        """
+        Возвращает кандидатов по внешнему content-профилю.
+
+        Args:
+            profile: L2-нормализованный профиль размерности 1 x n_features.
+            candidate_count: Максимальное количество кандидатов.
+            exclude_anime_ids: Идентификаторы исключаемых аниме.
+
+        Returns:
+            Ранжированных content-кандидатов.
+
+        Raises:
+            RuntimeError: Если retriever ещё не обучен.
+            ValueError: Если размерность профиля некорректна.
+        """
+        self._require_fitted()
+        validate_candidate_count(candidate_count)
+
+        assert self._item_features is not None
+
+        expected_shape = (
+            1,
+            self._item_features.item_feature_matrix.shape[1],
+        )
+        if profile.shape != expected_shape:
+            raise ValueError(
+                f"profile должен иметь размерность {expected_shape}, "
+                f"получено {profile.shape}."
+            )
+
+        scores = (self._item_features.item_feature_matrix @ profile.T).toarray().ravel()
+
+        anime_ids, scores = exclude_scored_items(
+            self._item_features.raw_anime_ids,
+            scores,
+            exclude_anime_ids,
+        )
+
+        ranked_items = (
+            pd.DataFrame(
+                {
+                    "anime_id": anime_ids,
+                    "score": scores,
+                }
+            )
+            .sort_values(
+                ["score", "anime_id"],
+                ascending=[False, True],
+                kind="stable",
+            )
+            .reset_index(drop=True)
+        )
+
+        return build_candidate_frame(
+            anime_ids=ranked_items["anime_id"].to_numpy(),
+            scores=ranked_items["score"].to_numpy(),
+            source=RetrieverName.CONTENT_TFIDF,
+            candidate_count=candidate_count,
+        )
 
     def supports_user(self, user_id: int) -> bool:
         """

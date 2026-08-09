@@ -18,7 +18,7 @@ def classify_user_state(
     user_exists: bool,
     history_synced: bool,
     interaction_count: int,
-    positive_count: int,
+    supported_positive_count: int,
     supports_personal_retriever: bool,
     min_positive_items: int,
 ) -> UserState:
@@ -29,7 +29,8 @@ def classify_user_state(
         user_exists: Подтверждено ли существование пользователя.
         history_synced: Была ли история успешно синхронизирована.
         interaction_count: Число известных взаимодействий.
-        positive_count: Число положительных preference-items.
+        supported_positive_count: Число положительных anime,
+            поддерживаемых текущим content artifact.
         supports_personal_retriever: Поддерживает ли пользователя personal retriever.
         min_positive_items: Минимум positive items для устойчивого cold-профиля.
 
@@ -48,10 +49,10 @@ def classify_user_state(
     if supports_personal_retriever:
         return UserState.WARM
 
-    if positive_count == 0:
+    if supported_positive_count == 0:
         return UserState.NO_PREFERENCE_SIGNAL
 
-    if positive_count < min_positive_items:
+    if supported_positive_count < min_positive_items:
         return UserState.SPARSE_COLD
 
     return UserState.PERSONALIZED_COLD
