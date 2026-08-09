@@ -93,6 +93,30 @@ class ExplicitSVDRetriever:
         self._require_fitted()
         return self._supported_anime_ids
 
+    def supports_user(self, user_id: int) -> bool:
+        """
+        Проверяет поддержку пользователя retriever-ом.
+
+        Args:
+            user_id: Идентификатор пользователя.
+
+        Returns:
+            True, если пользователь присутствует в обученной модели.
+
+        Raises:
+            RuntimeError: Если retriever ещё не обучен.
+        """
+        self._require_fitted()
+
+        assert self._trainset is not None
+
+        try:
+            self._trainset.to_inner_uid(user_id)
+        except ValueError:
+            return False
+
+        return True
+
     def fit(
         self,
         train_interactions: pd.DataFrame,

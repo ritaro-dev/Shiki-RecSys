@@ -325,3 +325,84 @@ def test_score_items_returns_scores_in_requested_order(
     )
 
     assert np.isnan(unknown_user_scores).all()
+
+
+def test_supports_user_rejects_call_before_fit() -> None:
+    """Проверяет запрет проверки пользователя до обучения."""
+    retriever = ContentTFIDFRetriever()
+
+    with pytest.raises(
+        RuntimeError,
+        match="ещё не обучен",
+    ):
+        retriever.supports_user(1)
+
+
+def test_supports_user_checks_existing_profile(
+    fitted_retriever: ContentTFIDFRetriever,
+) -> None:
+    """Проверяет наличие content-профиля пользователя."""
+    assert fitted_retriever.supports_user(1)
+    assert not fitted_retriever.supports_user(999)
+
+
+def test_item_features_rejects_call_before_fit() -> None:
+    """Проверяет запрет доступа к item features до обучения."""
+    retriever = ContentTFIDFRetriever()
+
+    with pytest.raises(
+        RuntimeError,
+        match="ещё не обучен",
+    ):
+        _ = retriever.item_features
+
+
+def test_retrieve_from_profile_returns_ranked_candidates(
+    fitted_retriever: ContentTFIDFRetriever,
+) -> None:
+    """Проверяет ранжирование по внешнему content-профилю."""
+    profile = csr_matrix(
+        [[1.0, 0.0]],
+        dtype=np.float32,
+    )
+
+    candidates = fitted_retriever.retrieve_from_profile(
+        profile=profile,
+        candidate_count=2,
+        exclude_anime_ids={30},
+    )
+
+    assert candidates["anime_id"].tolist() == [
+        20,
+        10,
+    ]
+    np.testing.assert_allclose(
+        candidates["score"],
+        [
+            1 / np.sqrt(2),
+            0.0,
+        ],
+        rtol=1e-6,
+        atol=1e-7,
+    )
+    assert candidates["source_rank"].tolist() == [1, 2]
+
+
+def test_retrieve_from_profile_rejects_invalid_shape(
+    fitted_retriever: ContentTFIDFRetriever,
+) -> None:
+    """Проверяет размерность внешнего content-профиля."""
+    profile = csr_matrix(
+        np.ones(
+            (1, 3),
+            dtype=np.float32,
+        )
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="размерность",
+    ):
+        fitted_retriever.retrieve_from_profile(
+            profile=profile,
+        )

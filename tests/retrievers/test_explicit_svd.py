@@ -413,3 +413,22 @@ def test_score_items_returns_scores_in_requested_order(
     )
 
     assert np.isnan(unknown_user_scores).all()
+
+
+def test_supports_user_rejects_call_before_fit() -> None:
+    """Проверяет запрет проверки пользователя до обучения."""
+    retriever = _make_retriever()
+
+    with pytest.raises(
+        RuntimeError,
+        match="ещё не обучен",
+    ):
+        retriever.supports_user(1)
+
+
+def test_supports_user_checks_trained_user(
+    fitted_retriever: ExplicitSVDRetriever,
+) -> None:
+    """Проверяет поддержку известного и неизвестного пользователя."""
+    assert fitted_retriever.supports_user(1)
+    assert not fitted_retriever.supports_user(999)

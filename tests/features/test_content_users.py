@@ -7,7 +7,11 @@ from pandas.testing import assert_frame_equal
 from scipy.sparse import csr_matrix
 
 from shiki_recsys.features.content_items import ContentItemFeatures
-from shiki_recsys.features.content_users import build_content_user_profiles
+from shiki_recsys.features.content_users import (
+    build_content_profile,
+    build_content_user_profiles,
+    count_supported_positive_items,
+)
 
 
 def test_build_content_user_profiles_uses_recent_positive_items() -> None:
@@ -436,3 +440,203 @@ def test_build_content_user_profiles_does_not_modify_input() -> None:
         train_interactions,
         original,
     )
+
+
+def test_build_content_profile_uses_recent_supported_positive_items() -> None:
+    """Проверяет построение профиля по последним поддерживаемым positive items."""
+    item_features = ContentItemFeatures(
+        item_feature_matrix=csr_matrix(
+            np.eye(
+                3,
+                dtype=np.float32,
+            )
+        ),
+        raw_anime_ids=np.array(
+            [10, 20, 30],
+            dtype=np.int64,
+        ),
+        anime_to_inner={
+            10: 0,
+            20: 1,
+            30: 2,
+        },
+    )
+
+    interactions = pd.DataFrame(
+        {
+            "anime_id": [10, 20, 30],
+            "rating": pd.Series(
+                [10, 8, 9],
+                dtype="float32",
+            ),
+            "updated_at": pd.to_datetime(
+                [
+                    "2026-01-01",
+                    "2026-02-01",
+                    "2026-03-01",
+                ],
+                utc=True,
+            ),
+        }
+    )
+
+    profile = build_content_profile(
+        interactions,
+        item_features,
+        relevance_threshold=8,
+        max_positive_items=2,
+    )
+
+    expected = np.array(
+        [[0.0, 1 / np.sqrt(2), 1 / np.sqrt(2)]],
+        dtype=np.float32,
+    )
+
+    assert profile.shape == (1, 3)
+    assert profile.format == "csr"
+    assert profile.dtype == np.float32
+
+    np.testing.assert_allclose(
+        profile.toarray(),
+        expected,
+        rtol=1e-6,
+        atol=1e-7,
+    )
+
+
+def test_build_content_profile_ignores_unsupported_positive_items() -> None:
+    """Проверяет игнорирование positive items вне content artifact."""
+    item_features = ContentItemFeatures(
+        item_feature_matrix=csr_matrix(
+            np.eye(
+                2,
+                dtype=np.float32,
+            )
+        ),
+        raw_anime_ids=np.array(
+            [10, 20],
+            dtype=np.int64,
+        ),
+        anime_to_inner={
+            10: 0,
+            20: 1,
+        },
+    )
+
+    interactions = pd.DataFrame(
+        {
+            "anime_id": [10, 999],
+            "rating": pd.Series(
+                [8, 10],
+                dtype="float32",
+            ),
+            "updated_at": pd.to_datetime(
+                [
+                    "2026-01-01",
+                    "2026-02-01",
+                ],
+                utc=True,
+            ),
+        }
+    )
+
+    profile = build_content_profile(
+        interactions,
+        item_features,
+        relevance_threshold=8,
+        max_positive_items=50,
+    )
+
+    np.testing.assert_allclose(
+        profile.toarray(),
+        [[1.0, 0.0]],
+    )
+
+
+def test_build_content_profile_returns_zero_profile_without_supported_positive_items() -> (
+    None
+):
+    """Проверяет пустой профиль без поддерживаемого preference signal."""
+    item_features = ContentItemFeatures(
+        item_feature_matrix=csr_matrix(
+            np.eye(
+                2,
+                dtype=np.float32,
+            )
+        ),
+        raw_anime_ids=np.array(
+            [10, 20],
+            dtype=np.int64,
+        ),
+        anime_to_inner={
+            10: 0,
+            20: 1,
+        },
+    )
+
+    interactions = pd.DataFrame(
+        {
+            "anime_id": [10, 999],
+            "rating": pd.Series(
+                [7, 10],
+                dtype="float32",
+            ),
+            "updated_at": pd.to_datetime(
+                [
+                    "2026-01-01",
+                    "2026-02-01",
+                ],
+                utc=True,
+            ),
+        }
+    )
+
+    profile = build_content_profile(
+        interactions,
+        item_features,
+        relevance_threshold=8,
+        max_positive_items=50,
+    )
+
+    assert profile.shape == (1, 2)
+    assert profile.format == "csr"
+    assert profile.dtype == np.float32
+    assert profile.nnz == 0
+
+
+def test_count_supported_positive_items() -> None:
+    """Считает только positive items из текущего content artifact."""
+    item_features = ContentItemFeatures(
+        item_feature_matrix=csr_matrix(
+            np.eye(
+                2,
+                dtype=np.float32,
+            )
+        ),
+        raw_anime_ids=np.array(
+            [10, 20],
+            dtype=np.int64,
+        ),
+        anime_to_inner={
+            10: 0,
+            20: 1,
+        },
+    )
+
+    interactions = pd.DataFrame(
+        {
+            "anime_id": [10, 20, 30],
+            "rating": pd.Series(
+                [8, 7, 10],
+                dtype="float32",
+            ),
+        }
+    )
+
+    result = count_supported_positive_items(
+        interactions,
+        item_features,
+        relevance_threshold=8,
+    )
+
+    assert result == 1
