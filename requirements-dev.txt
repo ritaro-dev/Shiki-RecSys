@@ -14,14 +14,24 @@ anyio==4.14.2
     # via
     #   httpx2
     #   starlette
+catboost==1.2.10
+    # via shiki-recsys (pyproject.toml)
 certifi==2026.7.22
     # via requests
 charset-normalizer==3.4.9
     # via requests
 click==8.4.2
     # via uvicorn
+contourpy==1.3.3
+    # via matplotlib
+cycler==0.12.1
+    # via matplotlib
 fastapi==0.139.2
     # via shiki-recsys (pyproject.toml)
+fonttools==4.63.0
+    # via matplotlib
+graphviz==0.21
+    # via catboost
 greenlet==3.5.4
     # via sqlalchemy
 h11==0.16.0
@@ -45,24 +55,42 @@ joblib==1.5.3
     # via
     #   scikit-learn
     #   scikit-surprise
+kiwisolver==1.5.0
+    # via matplotlib
 mako==1.4.1
     # via alembic
 markupsafe==3.0.3
     # via mako
+matplotlib==3.11.1
+    # via catboost
 narwhals==2.24.0
-    # via scikit-learn
+    # via
+    #   plotly
+    #   scikit-learn
 numpy==2.5.1
     # via
+    #   catboost
+    #   contourpy
     #   implicit
+    #   matplotlib
     #   pandas
     #   scikit-learn
     #   scikit-surprise
     #   scipy
     #   shiki-recsys (pyproject.toml)
 packaging==26.3
-    # via pytest
+    # via
+    #   matplotlib
+    #   plotly
+    #   pytest
 pandas==3.0.3
-    # via shiki-recsys (pyproject.toml)
+    # via
+    #   catboost
+    #   shiki-recsys (pyproject.toml)
+pillow==12.3.0
+    # via matplotlib
+plotly==6.9.0
+    # via catboost
 pluggy==1.6.0
     # via pytest
 psycopg2-binary==2.9.12
@@ -78,10 +106,14 @@ pydantic-settings==2.14.2
     # via shiki-recsys (pyproject.toml)
 pygments==2.20.0
     # via pytest
+pyparsing==3.3.2
+    # via matplotlib
 pytest==9.1.1
     # via shiki-recsys (pyproject.toml)
 python-dateutil==2.9.0.post0
-    # via pandas
+    # via
+    #   matplotlib
+    #   pandas
 python-dotenv==1.2.2
     # via pydantic-settings
 pyyaml==6.0.3
@@ -96,12 +128,15 @@ scikit-surprise==1.1.5
     # via shiki-recsys (pyproject.toml)
 scipy==1.18.0
     # via
+    #   catboost
     #   implicit
     #   scikit-learn
     #   scikit-surprise
     #   shiki-recsys (pyproject.toml)
 six==1.17.0
-    # via python-dateutil
+    # via
+    #   catboost
+    #   python-dateutil
 sqlalchemy==2.0.51
     # via
     #   alembic

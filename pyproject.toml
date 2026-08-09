@@ -10,6 +10,7 @@ requires-python = ">=3.12"
 
 dependencies = [
     "alembic==1.18.5",
+    "catboost==1.2.10",
     "fastapi==0.139.2",
     "implicit==0.7.3",
     "numpy==2.5.1",

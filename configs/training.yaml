@@ -41,3 +41,9 @@ retrievers:
 
 candidate_generation:
   retrieval_k: 100
+
+ranker:
+  iterations: 1183
+  depth: 7
+  learning_rate: 0.05
+  l2_leaf_reg: 5.0
