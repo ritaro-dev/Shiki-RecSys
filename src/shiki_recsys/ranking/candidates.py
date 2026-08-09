@@ -4,6 +4,15 @@ import numpy as np
 import pandas as pd
 
 from shiki_recsys.retrievers.common import RetrieverName
+from shiki_recsys.retrievers.content_tfidf import ContentTFIDFRetriever
+from shiki_recsys.retrievers.explicit_svd import ExplicitSVDRetriever
+from shiki_recsys.retrievers.generation import (
+    build_candidate_union,
+    generate_retriever_candidates,
+    score_candidate_union,
+)
+from shiki_recsys.retrievers.implicit_als import ImplicitALSRetriever
+from shiki_recsys.retrievers.popularity import PopularityRetriever
 
 
 def build_ranker_candidate_features(
@@ -109,3 +118,58 @@ def build_ranker_candidate_features(
         ],
         kind="stable",
     ).reset_index(drop=True)
+
+
+def build_ranker_features_for_user(
+    *,
+    user_id: int,
+    known_anime_ids: set[int],
+    candidate_count: int,
+    popularity: PopularityRetriever,
+    explicit_svd: ExplicitSVDRetriever,
+    implicit_als: ImplicitALSRetriever,
+    content_tfidf: ContentTFIDFRetriever,
+) -> pd.DataFrame:
+    """
+    Формирует ranker-признаки кандидатов пользователя.
+
+    Args:
+        user_id: Идентификатор пользователя.
+        known_anime_ids: Известные пользователю anime.
+        candidate_count: Число кандидатов от каждого retriever-а.
+        popularity: Popularity retriever.
+        explicit_svd: Explicit SVD retriever.
+        implicit_als: Implicit ALS retriever.
+        content_tfidf: TF-IDF content retriever.
+
+    Returns:
+        Признаки общего candidate set пользователя.
+    """
+    retriever_candidates = generate_retriever_candidates(
+        user_id=user_id,
+        known_anime_ids=known_anime_ids,
+        candidate_count=candidate_count,
+        popularity=popularity,
+        explicit_svd=explicit_svd,
+        implicit_als=implicit_als,
+        content_tfidf=content_tfidf,
+    )
+
+    anime_ids = build_candidate_union(retriever_candidates)
+
+    retriever_scores = score_candidate_union(
+        user_id=user_id,
+        anime_ids=anime_ids,
+        retriever_candidates=retriever_candidates,
+        popularity=popularity,
+        explicit_svd=explicit_svd,
+        implicit_als=implicit_als,
+        content_tfidf=content_tfidf,
+    )
+
+    return build_ranker_candidate_features(
+        user_id=user_id,
+        anime_ids=anime_ids,
+        retriever_candidates=retriever_candidates,
+        retriever_scores=retriever_scores,
+    )
