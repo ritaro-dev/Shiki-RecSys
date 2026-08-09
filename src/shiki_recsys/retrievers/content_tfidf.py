@@ -3,6 +3,13 @@ import pandas as pd
 
 from shiki_recsys.features.content_items import ContentItemFeatures
 from shiki_recsys.features.content_users import ContentUserProfiles
+from shiki_recsys.retrievers.common import (
+    RetrieverName,
+    build_candidate_frame,
+    empty_candidates,
+    exclude_scored_items,
+    validate_candidate_count,
+)
 
 
 class ContentTFIDFRetriever:
@@ -72,6 +79,7 @@ class ContentTFIDFRetriever:
         *,
         user_id: int,
         candidate_count: int | None = None,
+        exclude_anime_ids: set[int] | None = None,
     ) -> pd.DataFrame:
         """
         Возвращает ранжированных content-кандидатов пользователя.
@@ -80,6 +88,8 @@ class ContentTFIDFRetriever:
             user_id: Идентификатор пользователя.
             candidate_count: Максимальное количество кандидатов.
                 Значение None означает возврат полного рейтинга.
+            exclude_anime_ids: Идентификаторы аниме,
+                исключаемые из выдачи.
 
         Returns:
             Таблицу идентификаторов, scores, источников
@@ -91,8 +101,7 @@ class ContentTFIDFRetriever:
         """
         self._require_fitted()
 
-        if candidate_count is not None and candidate_count <= 0:
-            raise ValueError("candidate_count должен быть больше 0 или равен None.")
+        validate_candidate_count(candidate_count)
 
         assert self._item_features is not None
         assert self._user_profiles is not None
@@ -100,7 +109,7 @@ class ContentTFIDFRetriever:
         inner_user_id = self._user_profiles.user_to_inner.get(user_id)
 
         if inner_user_id is None:
-            return self._empty_candidates()
+            return empty_candidates()
 
         user_profile = self._user_profiles.user_profile_matrix.getrow(inner_user_id)
 
@@ -108,11 +117,19 @@ class ContentTFIDFRetriever:
             (self._item_features.item_feature_matrix @ user_profile.T).toarray().ravel()
         )
 
-        candidates = (
+        anime_ids = self._item_features.raw_anime_ids
+
+        anime_ids, scores = exclude_scored_items(
+            anime_ids,
+            scores,
+            exclude_anime_ids,
+        )
+
+        ranked_items = (
             pd.DataFrame(
                 {
-                    "anime_id": self._item_features.raw_anime_ids,
-                    "score": scores.astype("float64"),
+                    "anime_id": anime_ids,
+                    "score": scores,
                 }
             )
             .sort_values(
@@ -129,31 +146,12 @@ class ContentTFIDFRetriever:
             .reset_index(drop=True)
         )
 
-        candidates["source"] = pd.Series(
-            "content_tfidf",
-            index=candidates.index,
-            dtype="string",
+        return build_candidate_frame(
+            anime_ids=ranked_items["anime_id"].to_numpy(),
+            scores=ranked_items["score"].to_numpy(),
+            source=RetrieverName.CONTENT_TFIDF,
+            candidate_count=candidate_count,
         )
-
-        candidates["source_rank"] = np.arange(
-            1,
-            len(candidates) + 1,
-            dtype=np.int32,
-        )
-
-        candidates = candidates[
-            [
-                "anime_id",
-                "score",
-                "source",
-                "source_rank",
-            ]
-        ]
-
-        if candidate_count is not None:
-            candidates = candidates.head(candidate_count)
-
-        return candidates.copy().reset_index(drop=True)
 
     def _require_fitted(self) -> None:
         """
@@ -165,19 +163,61 @@ class ContentTFIDFRetriever:
         if not self._is_fitted:
             raise RuntimeError("ContentTFIDFRetriever ещё не обучен.")
 
-    @staticmethod
-    def _empty_candidates() -> pd.DataFrame:
+    def score_items(
+        self,
+        *,
+        user_id: int,
+        anime_ids: np.ndarray,
+    ) -> np.ndarray:
         """
-        Создаёт пустую таблицу кандидатов.
+        Рассчитывает TF-IDF scores для заданных аниме.
+
+        Args:
+            user_id: Идентификатор пользователя.
+            anime_ids: Идентификаторы оцениваемых аниме.
 
         Returns:
-            Пустую таблицу стандартного формата.
+            Scores в порядке переданных anime_id.
         """
-        return pd.DataFrame(
-            {
-                "anime_id": pd.Series(dtype="int64"),
-                "score": pd.Series(dtype="float64"),
-                "source": pd.Series(dtype="string"),
-                "source_rank": pd.Series(dtype="int32"),
-            }
+        self._require_fitted()
+
+        scores = np.full(
+            len(anime_ids),
+            np.nan,
+            dtype=np.float64,
         )
+
+        assert self._item_features is not None
+        assert self._user_profiles is not None
+
+        inner_user_id = self._user_profiles.user_to_inner.get(user_id)
+
+        if inner_user_id is None:
+            return scores
+
+        supported_positions = [
+            position
+            for position, anime_id in enumerate(anime_ids)
+            if int(anime_id) in self._item_features.anime_to_inner
+        ]
+
+        if not supported_positions:
+            return scores
+
+        inner_anime_ids = np.array(
+            [
+                self._item_features.anime_to_inner[int(anime_ids[position])]
+                for position in supported_positions
+            ],
+            dtype=np.int64,
+        )
+
+        user_profile = self._user_profiles.user_profile_matrix.getrow(inner_user_id)
+
+        scores[supported_positions] = (
+            (self._item_features.item_feature_matrix[inner_anime_ids] @ user_profile.T)
+            .toarray()
+            .ravel()
+        )
+
+        return scores

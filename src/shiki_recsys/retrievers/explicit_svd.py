@@ -5,6 +5,14 @@ import pandas as pd
 from surprise import SVD, Dataset, Reader
 from surprise.trainset import Trainset
 
+from shiki_recsys.retrievers.common import (
+    RetrieverName,
+    build_candidate_frame,
+    empty_candidates,
+    exclude_scored_items,
+    validate_candidate_count,
+)
+
 
 class ExplicitSVDRetriever:
     """Формирует персональные кандидаты по явным оценкам."""
@@ -198,6 +206,7 @@ class ExplicitSVDRetriever:
         *,
         user_id: int,
         candidate_count: int | None = None,
+        exclude_anime_ids: set[int] | None = None,
     ) -> pd.DataFrame:
         """
         Возвращает ранжированных кандидатов пользователя.
@@ -206,6 +215,8 @@ class ExplicitSVDRetriever:
             user_id: Идентификатор пользователя.
             candidate_count: Максимальное количество кандидатов.
                 Значение None означает возврат полного рейтинга.
+            exclude_anime_ids: Идентификаторы аниме,
+                исключаемые из выдачи.
 
         Returns:
             Таблицу идентификаторов, scores, источников
@@ -217,8 +228,7 @@ class ExplicitSVDRetriever:
         """
         self._require_fitted()
 
-        if candidate_count is not None and candidate_count <= 0:
-            raise ValueError("candidate_count должен быть больше 0 или равен None.")
+        validate_candidate_count(candidate_count)
 
         assert self._model is not None
         assert self._trainset is not None
@@ -226,7 +236,7 @@ class ExplicitSVDRetriever:
         try:
             inner_user_id = self._trainset.to_inner_uid(user_id)
         except ValueError:
-            return self._empty_candidates()
+            return empty_candidates()
 
         item_inner_ids = np.arange(
             self._trainset.n_items,
@@ -252,11 +262,17 @@ class ExplicitSVDRetriever:
             count=self._trainset.n_items,
         )
 
-        candidates = (
+        anime_ids, scores = exclude_scored_items(
+            anime_ids,
+            scores,
+            exclude_anime_ids,
+        )
+
+        ranked_items = (
             pd.DataFrame(
                 {
                     "anime_id": anime_ids,
-                    "score": scores.astype("float64"),
+                    "score": scores,
                 }
             )
             .sort_values(
@@ -273,30 +289,12 @@ class ExplicitSVDRetriever:
             .reset_index(drop=True)
         )
 
-        candidates["source"] = pd.Series(
-            "explicit_svd",
-            index=candidates.index,
-            dtype="string",
+        return build_candidate_frame(
+            anime_ids=ranked_items["anime_id"].to_numpy(),
+            scores=ranked_items["score"].to_numpy(),
+            source=RetrieverName.EXPLICIT_SVD,
+            candidate_count=candidate_count,
         )
-        candidates["source_rank"] = np.arange(
-            1,
-            len(candidates) + 1,
-            dtype=np.int32,
-        )
-
-        candidates = candidates[
-            [
-                "anime_id",
-                "score",
-                "source",
-                "source_rank",
-            ]
-        ]
-
-        if candidate_count is not None:
-            candidates = candidates.head(candidate_count)
-
-        return candidates.copy().reset_index(drop=True)
 
     def _require_fitted(self) -> None:
         """
@@ -308,19 +306,53 @@ class ExplicitSVDRetriever:
         if self._model is None or self._trainset is None:
             raise RuntimeError("ExplicitSVDRetriever ещё не обучен.")
 
-    @staticmethod
-    def _empty_candidates() -> pd.DataFrame:
+    def score_items(
+        self,
+        *,
+        user_id: int,
+        anime_ids: np.ndarray,
+    ) -> np.ndarray:
         """
-        Создаёт пустую таблицу кандидатов.
+        Рассчитывает SVD scores для заданных аниме.
+
+        Args:
+            user_id: Идентификатор пользователя.
+            anime_ids: Идентификаторы оцениваемых аниме.
 
         Returns:
-            Пустую таблицу стандартного формата.
+            Scores в порядке переданных anime_id.
         """
-        return pd.DataFrame(
-            {
-                "anime_id": pd.Series(dtype="int64"),
-                "score": pd.Series(dtype="float64"),
-                "source": pd.Series(dtype="string"),
-                "source_rank": pd.Series(dtype="int32"),
-            }
+        self._require_fitted()
+
+        scores = np.full(
+            len(anime_ids),
+            np.nan,
+            dtype=np.float64,
         )
+
+        assert self._model is not None
+        assert self._trainset is not None
+
+        try:
+            inner_user_id = self._trainset.to_inner_uid(user_id)
+        except ValueError:
+            return scores
+
+        for position, anime_id in enumerate(anime_ids):
+            try:
+                inner_anime_id = self._trainset.to_inner_iid(int(anime_id))
+            except ValueError:
+                continue
+
+            score = self._model.qi[inner_anime_id] @ self._model.pu[inner_user_id]
+
+            if self._biased:
+                score += (
+                    self._trainset.global_mean
+                    + self._model.bu[inner_user_id]
+                    + self._model.bi[inner_anime_id]
+                )
+
+            scores[position] = score
+
+        return scores

@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from shiki_recsys.retrievers.common import RetrieverName
 from shiki_recsys.retrievers.implicit_als import (
     ImplicitALSRetriever,
 )
@@ -275,9 +276,9 @@ def test_retrieve_returns_ranked_candidates_for_known_user(
     assert np.isfinite(candidates["score"]).all()
 
     assert candidates["source"].tolist() == [
-        "implicit_als",
-        "implicit_als",
-        "implicit_als",
+        RetrieverName.IMPLICIT_ALS.value,
+        RetrieverName.IMPLICIT_ALS.value,
+        RetrieverName.IMPLICIT_ALS.value,
     ]
 
     assert candidates["source_rank"].tolist() == [
@@ -349,3 +350,61 @@ def test_retrieve_returns_typed_empty_frame_for_unknown_user(
     assert candidates["score"].dtype == "float64"
     assert candidates["source"].dtype == "string"
     assert candidates["source_rank"].dtype == "int32"
+
+
+def test_retrieve_excludes_anime_before_candidate_limit(
+    fitted_retriever: ImplicitALSRetriever,
+) -> None:
+    """Проверяет исключение аниме до ограничения выдачи."""
+
+    full_candidates = fitted_retriever.retrieve(
+        user_id=1,
+    )
+    excluded_anime_id = int(full_candidates.iloc[0]["anime_id"])
+
+    candidates = fitted_retriever.retrieve(
+        user_id=1,
+        candidate_count=2,
+        exclude_anime_ids={excluded_anime_id},
+    )
+
+    assert candidates["anime_id"].tolist() == (
+        full_candidates.iloc[1:3]["anime_id"].tolist()
+    )
+    assert candidates["source_rank"].tolist() == [1, 2]
+
+
+def test_score_items_returns_scores_in_requested_order(
+    fitted_retriever: ImplicitALSRetriever,
+) -> None:
+    """Проверяет scores заданных аниме и неподдерживаемые объекты."""
+
+    full_candidates = fitted_retriever.retrieve(user_id=1).set_index("anime_id")[
+        "score"
+    ]
+
+    anime_ids = np.array(
+        [20, 999, 10],
+        dtype=np.int64,
+    )
+
+    scores = fitted_retriever.score_items(
+        user_id=1,
+        anime_ids=anime_ids,
+    )
+
+    np.testing.assert_allclose(
+        scores[[0, 2]],
+        [
+            full_candidates.loc[20],
+            full_candidates.loc[10],
+        ],
+    )
+    assert np.isnan(scores[1])
+
+    unknown_user_scores = fitted_retriever.score_items(
+        user_id=999,
+        anime_ids=anime_ids,
+    )
+
+    assert np.isnan(unknown_user_scores).all()

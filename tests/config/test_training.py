@@ -65,6 +65,15 @@ def _build_valid_config() -> dict[str, Any]:
                 "max_positive_items": 50,
             },
         },
+        "candidate_generation": {
+            "retrieval_k": 100,
+        },
+        "ranker": {
+            "iterations": 1183,
+            "depth": 7,
+            "learning_rate": 0.05,
+            "l2_leaf_reg": 5.0,
+        },
     }
 
 
@@ -123,6 +132,15 @@ def test_load_training_config_returns_typed_config(
     content_tfidf_config = config.retrievers.content_tfidf
 
     assert content_tfidf_config.max_positive_items == 50
+
+    assert config.candidate_generation.retrieval_k == 100
+
+    ranker_config = config.ranker
+
+    assert ranker_config.iterations == 1183
+    assert ranker_config.depth == 7
+    assert ranker_config.learning_rate == 0.05
+    assert ranker_config.l2_leaf_reg == 5.0
 
 
 def test_load_training_config_rejects_invalid_fraction_sum(

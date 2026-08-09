@@ -201,6 +201,37 @@ class RetrieversConfig(BaseModel):
     content_tfidf: ContentTFIDFConfig
 
 
+class CandidateGenerationConfig(BaseModel):
+    """Хранит параметры генерации кандидатов."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+    )
+
+    retrieval_k: int = Field(gt=0)
+
+
+class RankerConfig(BaseModel):
+    """Хранит параметры CatBoost ranker."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+    )
+
+    iterations: int = Field(gt=0)
+    depth: int = Field(gt=0)
+    learning_rate: float = Field(
+        gt=0,
+        allow_inf_nan=False,
+    )
+    l2_leaf_reg: float = Field(
+        ge=0,
+        allow_inf_nan=False,
+    )
+
+
 class TrainingConfig(BaseModel):
     """Хранит полную конфигурацию обучения системы."""
 
@@ -213,6 +244,8 @@ class TrainingConfig(BaseModel):
     dataset: DatasetConfig
     target: TargetConfig
     retrievers: RetrieversConfig
+    candidate_generation: CandidateGenerationConfig
+    ranker: RankerConfig
 
 
 def load_training_config(

@@ -1,6 +1,12 @@
 import numpy as np
 import pandas as pd
 
+from shiki_recsys.retrievers.common import (
+    RetrieverName,
+    build_candidate_frame,
+    validate_candidate_count,
+)
+
 
 class PopularityRetriever:
     """Ранжирует аниме по числу положительных train-оценок."""
@@ -135,25 +141,13 @@ class PopularityRetriever:
             .reset_index(drop=True)
         )
 
-        candidates = pd.DataFrame(
-            {
-                "anime_id": (popularity_statistics["anime_id"].astype("int64")),
-                "score": (popularity_statistics["positive_ratings"].astype("float64")),
-                "source": pd.Series(
-                    "popularity",
-                    index=popularity_statistics.index,
-                    dtype="string",
-                ),
-                "source_rank": np.arange(
-                    1,
-                    len(popularity_statistics) + 1,
-                    dtype=np.int32,
-                ),
-            }
+        candidates = build_candidate_frame(
+            anime_ids=popularity_statistics["anime_id"].to_numpy(),
+            scores=popularity_statistics["positive_ratings"].to_numpy(),
+            source=RetrieverName.POPULARITY,
         )
 
         self._candidates = candidates
-
         self._supported_anime_ids = frozenset(candidates["anime_id"].tolist())
 
         return self
@@ -162,6 +156,7 @@ class PopularityRetriever:
         self,
         *,
         candidate_count: int | None = None,
+        exclude_anime_ids: set[int] | None = None,
     ) -> pd.DataFrame:
         """
         Возвращает глобально ранжированных кандидатов.
@@ -169,6 +164,8 @@ class PopularityRetriever:
         Args:
             candidate_count: Максимальное количество кандидатов.
                 Значение None означает возврат полного рейтинга.
+            exclude_anime_ids: Идентификаторы аниме,
+                исключаемые из выдачи.
 
         Returns:
             Таблицу идентификаторов, scores, источников
@@ -181,15 +178,21 @@ class PopularityRetriever:
 
         self._require_fitted()
 
-        if candidate_count is not None and candidate_count <= 0:
-            raise ValueError("candidate_count должен быть больше 0 или равен None.")
+        validate_candidate_count(candidate_count)
 
         assert self._candidates is not None
 
-        if candidate_count is None:
-            return self._candidates.copy()
+        candidates = self._candidates
 
-        return self._candidates.head(candidate_count).copy().reset_index(drop=True)
+        if exclude_anime_ids:
+            candidates = candidates.loc[~candidates["anime_id"].isin(exclude_anime_ids)]
+
+        return build_candidate_frame(
+            anime_ids=candidates["anime_id"].to_numpy(),
+            scores=candidates["score"].to_numpy(),
+            source=RetrieverName.POPULARITY,
+            candidate_count=candidate_count,
+        )
 
     def _require_fitted(self) -> None:
         """
@@ -201,3 +204,25 @@ class PopularityRetriever:
 
         if self._candidates is None:
             raise RuntimeError("PopularityRetriever ещё не обучен.")
+
+    def score_items(
+        self,
+        *,
+        anime_ids: np.ndarray,
+    ) -> np.ndarray:
+        """
+        Возвращает popularity scores заданных аниме.
+
+        Args:
+            anime_ids: Идентификаторы оцениваемых аниме.
+
+        Returns:
+            Scores в порядке переданных anime_id.
+        """
+        self._require_fitted()
+
+        assert self._candidates is not None
+
+        score_by_anime = self._candidates.set_index("anime_id")["score"]
+
+        return score_by_anime.reindex(anime_ids).to_numpy(dtype=np.float64)
