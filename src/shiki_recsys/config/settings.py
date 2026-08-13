@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import SecretStr
 from pydantic_settings import (
@@ -37,6 +38,13 @@ class Settings(BaseSettings):
     shikimori_timeout_seconds: float = 15.0
 
     shikimori_min_interval_seconds: float = 0.8
+
+    # Model artifacts
+    artifacts_dir: Path = Path("artifacts")
+
+    # Recommendation serving
+    recommendation_top_k: int = 20
+    recommendation_min_positive_items: int
 
     @property
     def database_connection_kwargs(

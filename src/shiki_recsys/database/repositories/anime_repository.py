@@ -9,35 +9,71 @@ from ..models.anime import Anime
 
 
 class AnimeRepository:
-    """
-    Выполняет операции с таблицей animes.
-    """
+    """Provide persistence operations for the anime catalog."""
 
     def get_all_ids(
         self,
         session: Session,
     ) -> set[int]:
         """
-        Возвращает идентификаторы всех аниме,
-        сохранённых в таблице animes.
+        Return IDs of all stored anime.
+
+        Args:
+            session: Database session.
+
+        Returns:
+            Stored anime IDs.
         """
 
         statement = select(Anime.id)
 
         return set(session.scalars(statement).all())
 
+    def get_titles_by_ids(
+        self,
+        session: Session,
+        *,
+        anime_ids: Sequence[int],
+    ) -> list[dict[str, object]]:
+        """
+        Return title fields for the requested anime.
+
+        Args:
+            session: Database session.
+            anime_ids: Anime IDs to retrieve.
+
+        Returns:
+            Anime IDs with default and Russian titles.
+        """
+        if not anime_ids:
+            return []
+
+        statement = (
+            select(
+                Anime.id,
+                Anime.name,
+                Anime.russian_name,
+            )
+            .where(Anime.id.in_(anime_ids))
+            .order_by(Anime.id)
+        )
+
+        rows = session.execute(statement).mappings().all()
+
+        return [dict(row) for row in rows]
+
     def get_all(
         self,
         session: Session,
     ) -> list[dict[str, Any]]:
         """
-        Возвращает все аниме из таблицы animes.
+        Return the stored anime catalog.
 
         Args:
-            session: Сессия базы данных.
+            session: Database session.
 
         Returns:
-            Строки каталога, упорядоченные по идентификатору аниме.
+            Catalog rows ordered by anime ID.
         """
 
         statement = select(
@@ -69,10 +105,16 @@ class AnimeRepository:
         anime_rows: Sequence[dict[str, Any]],
     ) -> int:
         """
-        Добавляет или обновляет пачку аниме.
+        Insert or update anime catalog rows.
 
-        Не выполняет commit: транзакцией управляет
-        вызывающий код.
+        The caller is responsible for transaction management.
+
+        Args:
+            session: Database session.
+            anime_rows: Anime rows to persist.
+
+        Returns:
+            Number of processed rows.
         """
 
         if not anime_rows:

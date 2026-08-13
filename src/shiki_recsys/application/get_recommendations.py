@@ -1,6 +1,9 @@
 from sqlalchemy.orm import Session
 
 from shiki_recsys.config.inference import RecommendationServingConfig
+from shiki_recsys.database.repositories.anime_repository import (
+    AnimeRepository,
+)
 from shiki_recsys.database.repositories.user_rate_svd_repository import (
     UserRateSVDRepository,
 )
@@ -21,6 +24,7 @@ def get_recommendations(
     session: Session,
     user_repository: UserRepository,
     rates_repository: UserRateSVDRepository,
+    anime_repository: AnimeRepository,
     user_id: int,
     bundle: ModelBundle,
     artifact_config: ArtifactInferenceConfig,
@@ -33,6 +37,7 @@ def get_recommendations(
         session: Database session.
         user_repository: Repository for persisted users.
         rates_repository: Repository for persisted interactions.
+        anime_repository: Repository for anime catalog metadata.
         user_id: Shikimori user ID.
         bundle: Loaded inference model bundle.
         artifact_config: Artifact-bound inference configuration.
@@ -59,7 +64,7 @@ def get_recommendations(
 
     interactions = prepare_interactions(rows)
 
-    return build_recommendations(
+    result = build_recommendations(
         user_id=user_id,
         interactions=interactions,
         user_exists=user_exists,
@@ -67,4 +72,26 @@ def get_recommendations(
         bundle=bundle,
         artifact_config=artifact_config,
         serving_config=serving_config,
+    )
+
+    if result.recommendations.empty:
+        return result
+
+    anime_ids = [int(anime_id) for anime_id in result.recommendations["anime_id"]]
+
+    title_rows = anime_repository.get_titles_by_ids(
+        session=session,
+        anime_ids=anime_ids,
+    )
+
+    display_names = {
+        int(row["id"]): str(row["russian_name"] or row["name"]) for row in title_rows
+    }
+
+    recommendations = result.recommendations.copy()
+    recommendations["display_name"] = recommendations["anime_id"].map(display_names)
+
+    return RecommendationResult(
+        state=result.state,
+        recommendations=recommendations,
     )
