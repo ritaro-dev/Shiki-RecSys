@@ -64,6 +64,41 @@ class UserRateSVDRepository:
 
         session.execute(statement)
 
+    def get_by_user_id(
+        self,
+        session: Session,
+        *,
+        user_id: int,
+    ) -> list[dict[str, object]]:
+        """
+        Return interactions stored for a user.
+
+        Args:
+            session: Database session.
+            user_id: Shikimori user ID.
+
+        Returns:
+            Stored user interactions.
+        """
+        statement = (
+            select(
+                UserRateSVD.user_id,
+                UserRateSVD.anime_id,
+                UserRateSVD.rating,
+                UserRateSVD.status,
+                UserRateSVD.updated_at,
+            )
+            .where(UserRateSVD.user_id == user_id)
+            .order_by(
+                UserRateSVD.updated_at,
+                UserRateSVD.anime_id,
+            )
+        )
+
+        rows = session.execute(statement).mappings().all()
+
+        return [dict(row) for row in rows]
+
     def get_all(
         self,
         session: Session,
