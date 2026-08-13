@@ -5,7 +5,10 @@ from pathlib import Path
 import joblib
 
 from shiki_recsys.inference.model_bundle import ModelBundle
-from shiki_recsys.model_artifacts import ArtifactMetadata
+from shiki_recsys.model_artifacts import (
+    ArtifactInferenceConfig,
+    ArtifactMetadata,
+)
 
 
 def load_model_artifacts(
@@ -46,6 +49,13 @@ def load_model_artifacts(
     metadata = ArtifactMetadata(
         artifact_version=metadata_payload["artifact_version"],
         created_at=datetime.fromisoformat(metadata_payload["created_at"]),
+        inference=ArtifactInferenceConfig(
+            retrieval_k=metadata_payload["inference"]["retrieval_k"],
+            positive_rating_threshold=metadata_payload["inference"][
+                "positive_rating_threshold"
+            ],
+            max_positive_items=metadata_payload["inference"]["max_positive_items"],
+        ),
     )
 
     if metadata.artifact_version != artifact_version:

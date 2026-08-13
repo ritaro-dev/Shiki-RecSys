@@ -6,8 +6,24 @@ from unittest.mock import Mock
 import pytest
 
 from shiki_recsys.inference.model_bundle import ModelBundle
-from shiki_recsys.model_artifacts import ArtifactMetadata
+from shiki_recsys.model_artifacts import (
+    ArtifactInferenceConfig,
+    ArtifactMetadata,
+)
 from shiki_recsys.training.artifact_writer import write_model_artifacts
+
+
+def _metadata(artifact_version: str) -> ArtifactMetadata:
+    """Создаёт metadata для тестов artifact writer."""
+    return ArtifactMetadata(
+        artifact_version=artifact_version,
+        created_at=datetime(2026, 8, 10, 12, 0, tzinfo=UTC),
+        inference=ArtifactInferenceConfig(
+            retrieval_k=100,
+            positive_rating_threshold=8,
+            max_positive_items=50,
+        ),
+    )
 
 
 def test_write_model_artifacts_creates_version_directory(
@@ -16,10 +32,7 @@ def test_write_model_artifacts_creates_version_directory(
 ) -> None:
     """Проверяет сохранение bundle и metadata версии."""
     bundle = Mock(spec=ModelBundle)
-    metadata = ArtifactMetadata(
-        artifact_version="20260810T120000Z",
-        created_at=datetime(2026, 8, 10, 12, 0, tzinfo=UTC),
-    )
+    metadata = _metadata("20260810T120000Z")
 
     def fake_dump(obj: object, path: Path) -> None:
         path.write_bytes(b"bundle")
@@ -45,6 +58,11 @@ def test_write_model_artifacts_creates_version_directory(
     assert metadata_payload == {
         "artifact_version": "20260810T120000Z",
         "created_at": "2026-08-10T12:00:00+00:00",
+        "inference": {
+            "retrieval_k": 100,
+            "positive_rating_threshold": 8,
+            "max_positive_items": 50,
+        },
     }
 
 
@@ -62,10 +80,7 @@ def test_write_model_artifacts_rejects_existing_version(
         write_model_artifacts(
             artifacts_dir=tmp_path,
             bundle=Mock(spec=ModelBundle),
-            metadata=ArtifactMetadata(
-                artifact_version="v1",
-                created_at=datetime.now(UTC),
-            ),
+            metadata=_metadata("v1"),
         )
 
 
@@ -90,10 +105,7 @@ def test_write_model_artifacts_does_not_publish_failed_version(
         write_model_artifacts(
             artifacts_dir=tmp_path,
             bundle=Mock(spec=ModelBundle),
-            metadata=ArtifactMetadata(
-                artifact_version="v1",
-                created_at=datetime.now(UTC),
-            ),
+            metadata=_metadata("v1"),
         )
 
     assert not (tmp_path / "versions" / "v1").exists()

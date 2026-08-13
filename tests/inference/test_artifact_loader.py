@@ -16,7 +16,10 @@ from shiki_recsys.inference.artifact_loader import (
     load_model_artifacts,
 )
 from shiki_recsys.inference.model_bundle import ModelBundle
-from shiki_recsys.model_artifacts import ArtifactMetadata
+from shiki_recsys.model_artifacts import (
+    ArtifactInferenceConfig,
+    ArtifactMetadata,
+)
 from shiki_recsys.ranking.catboost import CatBoostRankerModel
 from shiki_recsys.retrievers.content_tfidf import ContentTFIDFRetriever
 from shiki_recsys.retrievers.explicit_svd import ExplicitSVDRetriever
@@ -41,6 +44,11 @@ def _write_artifact_version(
             {
                 "artifact_version": metadata_version or directory_version,
                 "created_at": "2026-08-10T12:00:00+00:00",
+                "inference": {
+                    "retrieval_k": 100,
+                    "positive_rating_threshold": 8,
+                    "max_positive_items": 50,
+                },
             }
         ),
         encoding="utf-8",
@@ -80,6 +88,11 @@ def test_load_model_artifacts_loads_specific_version(
         12,
         0,
         tzinfo=UTC,
+    )
+    assert metadata.inference == ArtifactInferenceConfig(
+        retrieval_k=100,
+        positive_rating_threshold=8,
+        max_positive_items=50,
     )
 
     load_mock.assert_called_once_with(version_dir / "model_bundle.joblib")
@@ -256,6 +269,11 @@ def test_model_bundle_survives_artifact_round_trip(
             12,
             0,
             tzinfo=UTC,
+        ),
+        inference=ArtifactInferenceConfig(
+            retrieval_k=100,
+            positive_rating_threshold=8,
+            max_positive_items=50,
         ),
     )
 

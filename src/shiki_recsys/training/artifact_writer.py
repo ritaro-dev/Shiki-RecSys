@@ -55,6 +55,11 @@ def write_model_artifacts(
         metadata_payload = {
             "artifact_version": metadata.artifact_version,
             "created_at": metadata.created_at.isoformat(),
+            "inference": {
+                "retrieval_k": metadata.inference.retrieval_k,
+                "positive_rating_threshold": metadata.inference.positive_rating_threshold,
+                "max_positive_items": metadata.inference.max_positive_items,
+            },
         }
 
         (temp_path / "metadata.json").write_text(
