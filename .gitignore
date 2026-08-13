@@ -26,6 +26,11 @@ __pycache__/
 # Метаданные установленных Python-пакетов
 *.egg-info/
 
+# Model artifacts
+artifacts/current
+artifacts/versions/*
+!artifacts/versions/.gitkeep
+
 # Исследовательские ноутбуки
 notebooks/recsys.ipynb
 notebooks/research.ipynb
