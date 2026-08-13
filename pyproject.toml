@@ -13,6 +13,7 @@ dependencies = [
     "catboost==1.2.10",
     "fastapi==0.139.2",
     "implicit==0.7.3",
+    "joblib==1.5.3",
     "numpy==2.5.1",
     "pandas==3.0.3",
     "psycopg2-binary==2.9.12",
