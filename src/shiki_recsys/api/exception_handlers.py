@@ -2,12 +2,10 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
 from shiki_recsys.application.exceptions import (
+    SyncJobNotFoundError,
     UserAlreadyExistsError,
     UserNotFoundError,
     UserNotSyncedError,
-)
-from shiki_recsys.integrations.shikimori.exceptions import (
-    ShikimoriError,
 )
 
 
@@ -56,20 +54,14 @@ async def handle_user_not_synced(
     )
 
 
-async def handle_shikimori_error(
+async def handle_sync_job_not_found(
     request: Request,
-    exc: ShikimoriError,
+    exc: SyncJobNotFoundError,
 ) -> JSONResponse:
-    """
-    Преобразует ошибку внешнего API Shikimori
-    в HTTP 502 Bad Gateway.
-    """
-
+    """Return a not-found response for a missing synchronization job."""
     return JSONResponse(
-        status_code=status.HTTP_502_BAD_GATEWAY,
-        content={
-            "detail": ("Не удалось получить данные из Shikimori."),
-        },
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={"detail": str(exc)},
     )
 
 
@@ -97,6 +89,6 @@ def register_exception_handlers(
     )
 
     app.add_exception_handler(
-        ShikimoriError,
-        handle_shikimori_error,
+        SyncJobNotFoundError,
+        handle_sync_job_not_found,
     )

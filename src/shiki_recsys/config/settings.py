@@ -39,6 +39,9 @@ class Settings(BaseSettings):
 
     shikimori_min_interval_seconds: float = 0.8
 
+    # Synchronization worker
+    sync_worker_poll_interval_seconds: float = 1.0
+
     # Model artifacts
     artifacts_dir: Path = Path("artifacts")
 

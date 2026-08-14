@@ -6,6 +6,9 @@ from sqlalchemy.orm import Session
 from shiki_recsys.database.repositories.anime_repository import (
     AnimeRepository,
 )
+from shiki_recsys.database.repositories.sync_job_repository import (
+    SyncJobRepository,
+)
 from shiki_recsys.database.repositories.user_rate_svd_repository import (
     UserRateSVDRepository,
 )
@@ -13,34 +16,25 @@ from shiki_recsys.database.repositories.user_repository import (
     UserRepository,
 )
 from shiki_recsys.inference.runtime import InferenceState
-from shiki_recsys.integrations.shikimori.client import (
-    ShikimoriClient,
-)
 
 
 def get_session(
     request: Request,
 ) -> Generator[Session, None, None]:
     """
-    Создаёт отдельную SQLAlchemy-сессию
-    для одного HTTP-запроса.
+    Provide a database session for one HTTP request.
+
+    Args:
+        request: Current FastAPI request.
+
+    Yields:
+        Database session scoped to the request.
     """
 
     session_factory = request.app.state.session_factory
 
     with session_factory() as session:
         yield session
-
-
-def get_shikimori_client(
-    request: Request,
-) -> ShikimoriClient:
-    """
-    Возвращает общий клиент Shikimori,
-    созданный при запуске приложения.
-    """
-
-    return request.app.state.shikimori_client
 
 
 def get_user_repository() -> UserRepository:
@@ -53,6 +47,11 @@ def get_anime_repository() -> AnimeRepository:
 
 def get_rates_repository() -> UserRateSVDRepository:
     return UserRateSVDRepository()
+
+
+def get_sync_job_repository() -> SyncJobRepository:
+    """Return a synchronization job repository."""
+    return SyncJobRepository()
 
 
 def get_inference_state(

@@ -1,20 +1,18 @@
 class ApplicationError(Exception):
-    """
-    Базовая ошибка сценариев приложения.
-    """
+    """Base exception for application use cases."""
 
 
 class UserAlreadyExistsError(ApplicationError):
-    """
-    Пользователь уже добавлен в систему.
-    """
+    """Raised when a user is already registered."""
 
 
 class UserNotFoundError(ApplicationError):
-    """
-    Пользователь не найден в системе.
-    """
+    """Raised when a user is not registered."""
 
 
 class UserNotSyncedError(ApplicationError):
     """Raised when recommendation history has not been synchronized."""
+
+
+class SyncJobNotFoundError(ApplicationError):
+    """Raised when no synchronization job exists for a user."""

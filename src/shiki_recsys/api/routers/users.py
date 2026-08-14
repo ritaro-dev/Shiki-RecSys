@@ -8,24 +8,31 @@ from shiki_recsys.api.dependencies import (
     get_inference_state,
     get_rates_repository,
     get_session,
-    get_shikimori_client,
+    get_sync_job_repository,
     get_user_repository,
 )
 from shiki_recsys.api.schemas.recommendations import (
     RecommendationItemResponse,
     RecommendationsResponse,
 )
+from shiki_recsys.api.schemas.sync_jobs import SyncJobResponse
 from shiki_recsys.api.schemas.users import (
     CreateUserRequest,
     UserResponse,
 )
 from shiki_recsys.application.add_user import add_user
+from shiki_recsys.application.enqueue_sync_job import enqueue_sync_job
 from shiki_recsys.application.get_recommendations import (
     get_recommendations,
 )
-from shiki_recsys.application.sync_user import sync_user
+from shiki_recsys.application.get_sync_job import (
+    get_latest_sync_job,
+)
 from shiki_recsys.database.repositories.anime_repository import (
     AnimeRepository,
+)
+from shiki_recsys.database.repositories.sync_job_repository import (
+    SyncJobRepository,
 )
 from shiki_recsys.database.repositories.user_rate_svd_repository import (
     UserRateSVDRepository,
@@ -34,9 +41,6 @@ from shiki_recsys.database.repositories.user_repository import (
     UserRepository,
 )
 from shiki_recsys.inference.runtime import InferenceState
-from shiki_recsys.integrations.shikimori.client import (
-    ShikimoriClient,
-)
 
 router = APIRouter(
     prefix="/users",
@@ -61,10 +65,9 @@ def create_user(
     ],
 ) -> UserResponse:
     """
-    Регистрирует пользователя по его Shikimori ID.
+    Register a Shikimori user in the recommendation system.
 
-    История пользователя этим запросом
-    не синхронизируется.
+    The user's history is synchronized separately.
     """
 
     user = add_user(
@@ -78,56 +81,97 @@ def create_user(
 
 @router.post(
     "/{user_id}/sync",
-    response_model=UserResponse,
-    status_code=status.HTTP_200_OK,
+    response_model=SyncJobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
 )
-def synchronize_user(
+def request_user_sync(
     user_id: Annotated[
         int,
         Path(
             gt=0,
-            description="Shikimori ID пользователя.",
+            description="Shikimori user ID.",
         ),
     ],
     session: Annotated[
         Session,
         Depends(get_session),
     ],
-    client: Annotated[
-        ShikimoriClient,
-        Depends(get_shikimori_client),
+    user_repository: Annotated[
+        UserRepository,
+        Depends(get_user_repository),
+    ],
+    sync_job_repository: Annotated[
+        SyncJobRepository,
+        Depends(get_sync_job_repository),
+    ],
+) -> SyncJobResponse:
+    """
+    Enqueue synchronization for a registered user.
+
+    Args:
+        user_id: Shikimori user ID.
+        session: Database session.
+        user_repository: Repository for persisted users.
+        sync_job_repository: Repository for synchronization jobs.
+
+    Returns:
+        Existing or newly created active synchronization job.
+    """
+    job = enqueue_sync_job(
+        session=session,
+        user_repository=user_repository,
+        sync_job_repository=sync_job_repository,
+        user_id=user_id,
+    )
+
+    return SyncJobResponse.model_validate(job)
+
+
+@router.get(
+    "/{user_id}/sync",
+    response_model=SyncJobResponse,
+)
+def get_user_sync(
+    user_id: Annotated[
+        int,
+        Path(
+            gt=0,
+            description="Shikimori user ID.",
+        ),
+    ],
+    session: Annotated[
+        Session,
+        Depends(get_session),
     ],
     user_repository: Annotated[
         UserRepository,
         Depends(get_user_repository),
     ],
-    anime_repository: Annotated[
-        AnimeRepository,
-        Depends(get_anime_repository),
+    sync_job_repository: Annotated[
+        SyncJobRepository,
+        Depends(get_sync_job_repository),
     ],
-    rates_repository: Annotated[
-        UserRateSVDRepository,
-        Depends(get_rates_repository),
-    ],
-) -> UserResponse:
+) -> SyncJobResponse:
     """
-    Синхронизирует историю зарегистрированного
-    пользователя с Shikimori.
+    Return the latest synchronization job for a user.
 
-    Запрос выполняется синхронно и может занять
-    длительное время.
+    Args:
+        user_id: Shikimori user ID.
+        session: Database session.
+        user_repository: Repository for persisted users.
+        sync_job_repository: Repository for synchronization jobs.
+
+    Returns:
+        Most recent synchronization job.
     """
-
-    user = sync_user(
+    job = get_latest_sync_job(
         session=session,
-        client=client,
         user_repository=user_repository,
-        anime_repository=anime_repository,
-        rates_repository=rates_repository,
+        sync_job_repository=sync_job_repository,
         user_id=user_id,
     )
 
-    return UserResponse.model_validate(user)
+    return SyncJobResponse.model_validate(job)
 
 
 @router.get(
