@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from shiki_recsys.application.exceptions import UserNotSyncedError
 from shiki_recsys.config.inference import RecommendationServingConfig
 from shiki_recsys.database.repositories.anime_repository import (
     AnimeRepository,
@@ -15,6 +16,7 @@ from shiki_recsys.inference.recommendation_service import (
     RecommendationResult,
     build_recommendations,
 )
+from shiki_recsys.inference.user_state import UserState
 from shiki_recsys.model_artifacts import ArtifactInferenceConfig
 from shiki_recsys.preprocessing.interactions import prepare_interactions
 
@@ -73,6 +75,9 @@ def get_recommendations(
         artifact_config=artifact_config,
         serving_config=serving_config,
     )
+
+    if result.state == UserState.NOT_SYNCED:
+        raise UserNotSyncedError(f"User {user_id} has not been synchronized.")
 
     if result.recommendations.empty:
         return result

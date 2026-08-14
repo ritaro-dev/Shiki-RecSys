@@ -14,3 +14,7 @@ class UserNotFoundError(ApplicationError):
     """
     Пользователь не найден в системе.
     """
+
+
+class UserNotSyncedError(ApplicationError):
+    """Raised when recommendation history has not been synchronized."""

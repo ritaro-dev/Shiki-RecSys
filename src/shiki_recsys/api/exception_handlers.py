@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from shiki_recsys.application.exceptions import (
     UserAlreadyExistsError,
     UserNotFoundError,
+    UserNotSyncedError,
 )
 from shiki_recsys.integrations.shikimori.exceptions import (
     ShikimoriError,
@@ -44,6 +45,17 @@ async def handle_user_not_found(
     )
 
 
+async def handle_user_not_synced(
+    request: Request,
+    exc: UserNotSyncedError,
+) -> JSONResponse:
+    """Return a conflict response for an unsynchronized user."""
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={"detail": str(exc)},
+    )
+
+
 async def handle_shikimori_error(
     request: Request,
     exc: ShikimoriError,
@@ -77,6 +89,11 @@ def register_exception_handlers(
     app.add_exception_handler(
         UserNotFoundError,
         handle_user_not_found,
+    )
+
+    app.add_exception_handler(
+        UserNotSyncedError,
+        handle_user_not_synced,
     )
 
     app.add_exception_handler(

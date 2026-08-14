@@ -2,8 +2,10 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pandas as pd
+import pytest
 
 import shiki_recsys.application.get_recommendations as get_recommendations_module
+from shiki_recsys.application.exceptions import UserNotSyncedError
 from shiki_recsys.inference.recommendation_service import (
     RecommendationResult,
 )
@@ -45,11 +47,15 @@ class FakeAnimeRepository:
         return self.rows
 
 
-def _capture_build_recommendations(monkeypatch):
+def _capture_build_recommendations(
+    monkeypatch,
+    *,
+    state: UserState = UserState.WARM,
+):
     """Capture arguments passed to recommendation inference."""
     captured = {}
     result = RecommendationResult(
-        state=UserState.NOT_SYNCED,
+        state=state,
         recommendations=pd.DataFrame(
             {
                 "anime_id": pd.Series(dtype="int64"),
@@ -72,21 +78,27 @@ def _capture_build_recommendations(monkeypatch):
 
 
 def test_get_recommendations_handles_missing_user(monkeypatch):
-    captured, expected_result = _capture_build_recommendations(monkeypatch)
+    captured, _ = _capture_build_recommendations(
+        monkeypatch,
+        state=UserState.NOT_SYNCED,
+    )
     rates_repository = FakeRatesRepository()
 
-    result = get_recommendations_module.get_recommendations(
-        session=object(),
-        user_repository=FakeUserRepository(),
-        rates_repository=rates_repository,
-        anime_repository=FakeAnimeRepository(),
-        user_id=USER_ID,
-        bundle=object(),
-        artifact_config=object(),
-        serving_config=object(),
-    )
+    with pytest.raises(
+        UserNotSyncedError,
+        match=f"User {USER_ID} has not been synchronized.",
+    ):
+        get_recommendations_module.get_recommendations(
+            session=object(),
+            user_repository=FakeUserRepository(),
+            rates_repository=rates_repository,
+            anime_repository=FakeAnimeRepository(),
+            user_id=USER_ID,
+            bundle=object(),
+            artifact_config=object(),
+            serving_config=object(),
+        )
 
-    assert result is expected_result
     assert captured["user_exists"] is None
     assert captured["history_synced"] is False
     assert captured["interactions"].empty
@@ -94,25 +106,31 @@ def test_get_recommendations_handles_missing_user(monkeypatch):
 
 
 def test_get_recommendations_handles_unsynced_user(monkeypatch):
-    captured, expected_result = _capture_build_recommendations(monkeypatch)
+    captured, _ = _capture_build_recommendations(
+        monkeypatch,
+        state=UserState.NOT_SYNCED,
+    )
     user = SimpleNamespace(
         id=USER_ID,
         last_synced_at=None,
     )
     rates_repository = FakeRatesRepository()
 
-    result = get_recommendations_module.get_recommendations(
-        session=object(),
-        user_repository=FakeUserRepository(user),
-        rates_repository=rates_repository,
-        anime_repository=FakeAnimeRepository(),
-        user_id=USER_ID,
-        bundle=object(),
-        artifact_config=object(),
-        serving_config=object(),
-    )
+    with pytest.raises(
+        UserNotSyncedError,
+        match=f"User {USER_ID} has not been synchronized.",
+    ):
+        get_recommendations_module.get_recommendations(
+            session=object(),
+            user_repository=FakeUserRepository(user),
+            rates_repository=rates_repository,
+            anime_repository=FakeAnimeRepository(),
+            user_id=USER_ID,
+            bundle=object(),
+            artifact_config=object(),
+            serving_config=object(),
+        )
 
-    assert result is expected_result
     assert captured["user_exists"] is None
     assert captured["history_synced"] is False
     assert captured["interactions"].empty
@@ -163,12 +181,13 @@ def test_get_recommendations_prepares_synced_history(monkeypatch):
         },
     ]
     rates_repository = FakeRatesRepository(rows)
+    anime_repository = FakeAnimeRepository()
 
     result = get_recommendations_module.get_recommendations(
         session=object(),
         user_repository=FakeUserRepository(user),
         rates_repository=rates_repository,
-        anime_repository=FakeAnimeRepository(),
+        anime_repository=anime_repository,
         user_id=USER_ID,
         bundle=object(),
         artifact_config=object(),
@@ -183,6 +202,7 @@ def test_get_recommendations_prepares_synced_history(monkeypatch):
     assert rates_repository.requested_user_id == USER_ID
     assert interactions["anime_id"].tolist() == [1, 2]
     assert interactions["rating"].tolist() == [9.0, 6.0]
+    assert anime_repository.requested_anime_ids is None
 
 
 def test_get_recommendations_adds_display_names(monkeypatch):
@@ -256,7 +276,9 @@ def test_get_recommendations_adds_display_names(monkeypatch):
     )
 
     assert anime_repository.requested_anime_ids == [1, 2]
+    assert result.state == UserState.WARM
     assert result.recommendations["anime_id"].tolist() == [1, 2]
+    assert result.recommendations["rank"].tolist() == [1, 2]
     assert result.recommendations["display_name"].tolist() == [
         "Русское название",
         "Default Two",

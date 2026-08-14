@@ -2,12 +2,15 @@ from contextlib import nullcontext
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
+import pandas as pd
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+import shiki_recsys.api.routers.users as users_router_module
 import shiki_recsys.application.sync_user as sync_user_module
 from shiki_recsys.api.dependencies import (
     get_anime_repository,
+    get_inference_state,
     get_rates_repository,
     get_session,
     get_shikimori_client,
@@ -19,6 +22,9 @@ from shiki_recsys.api.exception_handlers import (
 from shiki_recsys.api.routers.users import (
     router as users_router,
 )
+from shiki_recsys.application.exceptions import UserNotSyncedError
+from shiki_recsys.inference.recommendation_service import RecommendationResult
+from shiki_recsys.inference.user_state import UserState
 
 USER_ID = 315632
 CREATED_AT = datetime(
@@ -117,6 +123,7 @@ def create_test_client(
     user_repository: FakeUserRepository,
     anime_repository: FakeAnimeRepository | None = None,
     rates_repository: FakeRatesRepository | None = None,
+    inference_state=None,
 ) -> TestClient:
     app = FastAPI()
 
@@ -132,6 +139,9 @@ def create_test_client(
     app.dependency_overrides[get_rates_repository] = lambda: (
         rates_repository or FakeRatesRepository()
     )
+
+    if inference_state is not None:
+        app.dependency_overrides[get_inference_state] = lambda: inference_state
 
     return TestClient(app)
 
@@ -272,6 +282,137 @@ def test_sync_rejects_non_positive_user_id():
 
     response = client.post(
         "/users/0/sync",
+    )
+
+    assert response.status_code == 422
+
+
+def test_get_recommendations_returns_ranked_items(monkeypatch):
+    bundle = object()
+    artifact_config = object()
+    serving_config = object()
+
+    inference_state = SimpleNamespace(
+        bundle=bundle,
+        metadata=SimpleNamespace(
+            inference=artifact_config,
+        ),
+        serving_config=serving_config,
+    )
+
+    captured = {}
+
+    def fake_get_recommendations(**kwargs):
+        captured.update(kwargs)
+
+        return RecommendationResult(
+            state=UserState.WARM,
+            recommendations=pd.DataFrame(
+                {
+                    "anime_id": [1, 2],
+                    "display_name": [
+                        "Стальной алхимик",
+                        "Monster",
+                    ],
+                    "rank": [1, 2],
+                }
+            ),
+        )
+
+    monkeypatch.setattr(
+        users_router_module,
+        "get_recommendations",
+        fake_get_recommendations,
+    )
+
+    user_repository = FakeUserRepository(
+        user=make_user(),
+    )
+
+    client = create_test_client(
+        user_repository=user_repository,
+        inference_state=inference_state,
+    )
+
+    response = client.get(
+        f"/users/{USER_ID}/recommendations",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "user_id": USER_ID,
+        "state": "warm",
+        "recommendations": [
+            {
+                "anime_id": 1,
+                "display_name": "Стальной алхимик",
+                "rank": 1,
+            },
+            {
+                "anime_id": 2,
+                "display_name": "Monster",
+                "rank": 2,
+            },
+        ],
+    }
+
+    assert captured["user_id"] == USER_ID
+    assert captured["bundle"] is bundle
+    assert captured["artifact_config"] is artifact_config
+    assert captured["serving_config"] is serving_config
+
+
+def test_get_recommendations_returns_409_for_unsynced_user(
+    monkeypatch,
+):
+    inference_state = SimpleNamespace(
+        bundle=object(),
+        metadata=SimpleNamespace(
+            inference=object(),
+        ),
+        serving_config=object(),
+    )
+
+    def fake_get_recommendations(**kwargs):
+        raise UserNotSyncedError(f"User {USER_ID} has not been synchronized.")
+
+    monkeypatch.setattr(
+        users_router_module,
+        "get_recommendations",
+        fake_get_recommendations,
+    )
+
+    client = create_test_client(
+        user_repository=FakeUserRepository(),
+        inference_state=inference_state,
+    )
+
+    response = client.get(
+        f"/users/{USER_ID}/recommendations",
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": f"User {USER_ID} has not been synchronized.",
+    }
+
+
+def test_get_recommendations_rejects_non_positive_user_id():
+    inference_state = SimpleNamespace(
+        bundle=object(),
+        metadata=SimpleNamespace(
+            inference=object(),
+        ),
+        serving_config=object(),
+    )
+
+    client = create_test_client(
+        user_repository=FakeUserRepository(),
+        inference_state=inference_state,
+    )
+
+    response = client.get(
+        "/users/0/recommendations",
     )
 
     assert response.status_code == 422
