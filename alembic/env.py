@@ -1,5 +1,6 @@
 from logging.config import fileConfig
 
+import shiki_recsys.database.models  # noqa: F401
 from alembic import context
 from shiki_recsys.config.settings import get_settings
 from shiki_recsys.database.base import Base
@@ -28,18 +29,24 @@ def include_object(
     compare_to: object | None,
 ) -> bool:
     """
-    Исключает legacy-таблицы из автоматического
-    сравнения схемы Alembic.
+    Determine whether an object should participate in schema comparison.
+
+    Args:
+        object_: SQLAlchemy schema object.
+        name: Object name.
+        type_: Alembic object type.
+        reflected: Whether the object was loaded from the database.
+        compare_to: Corresponding metadata object.
+
+    Returns:
+        Whether Alembic should include the object.
     """
 
     return not (type_ == "table" and name in LEGACY_TABLE_NAMES)
 
 
 def run_migrations_offline() -> None:
-    """
-    Формирует SQL миграций без подключения
-    к PostgreSQL.
-    """
+    """Run migrations without an active database connection."""
 
     settings = get_settings()
     engine = create_database_engine(settings)
@@ -66,10 +73,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """
-    Выполняет миграции с подключением
-    к PostgreSQL.
-    """
+    """Run migrations using an active database connection."""
 
     settings = get_settings()
     engine = create_database_engine(settings)

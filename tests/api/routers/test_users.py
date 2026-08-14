@@ -7,13 +7,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import shiki_recsys.api.routers.users as users_router_module
-import shiki_recsys.application.sync_user as sync_user_module
 from shiki_recsys.api.dependencies import (
     get_anime_repository,
     get_inference_state,
     get_rates_repository,
     get_session,
-    get_shikimori_client,
+    get_sync_job_repository,
     get_user_repository,
 )
 from shiki_recsys.api.exception_handlers import (
@@ -22,9 +21,13 @@ from shiki_recsys.api.exception_handlers import (
 from shiki_recsys.api.routers.users import (
     router as users_router,
 )
-from shiki_recsys.application.exceptions import UserNotSyncedError
+from shiki_recsys.application.exceptions import (
+    UserNotFoundError,
+    UserNotSyncedError,
+)
 from shiki_recsys.inference.recommendation_service import RecommendationResult
 from shiki_recsys.inference.user_state import UserState
+from shiki_recsys.sync_jobs import SyncJobStatus
 
 USER_ID = 315632
 CREATED_AT = datetime(
@@ -124,6 +127,7 @@ def create_test_client(
     anime_repository: FakeAnimeRepository | None = None,
     rates_repository: FakeRatesRepository | None = None,
     inference_state=None,
+    sync_job_repository=None,
 ) -> TestClient:
     app = FastAPI()
 
@@ -131,7 +135,9 @@ def create_test_client(
     app.include_router(users_router)
 
     app.dependency_overrides[get_session] = lambda: FakeSession()
-    app.dependency_overrides[get_shikimori_client] = lambda: object()
+    app.dependency_overrides[get_sync_job_repository] = lambda: (
+        sync_job_repository or object()
+    )
     app.dependency_overrides[get_user_repository] = lambda: user_repository
     app.dependency_overrides[get_anime_repository] = lambda: (
         anime_repository or FakeAnimeRepository()
@@ -209,68 +215,83 @@ def test_create_user_rejects_non_positive_id():
     assert repository.added_user_id is None
 
 
-def test_sync_user_returns_200(monkeypatch):
-    history = [
-        {
-            "score": 8,
-            "status": "completed",
-            "updatedAt": "2026-08-03T10:00:00Z",
-            "anime": {
-                "id": "1",
-            },
-        },
-    ]
+def test_request_user_sync_returns_202(monkeypatch):
+    job = SimpleNamespace(
+        id=42,
+        user_id=USER_ID,
+        status=SyncJobStatus.PENDING.value,
+        created_at=CREATED_AT,
+        started_at=None,
+        finished_at=None,
+        error_code=None,
+        error_message=None,
+    )
+    captured = {}
+
+    def fake_enqueue_sync_job(**kwargs):
+        captured.update(kwargs)
+        return job
 
     monkeypatch.setattr(
-        sync_user_module,
-        "fetch_user_history",
-        lambda *, client, user_id: history,
+        users_router_module,
+        "enqueue_sync_job",
+        fake_enqueue_sync_job,
     )
 
     user_repository = FakeUserRepository(
         user=make_user(),
     )
-    anime_repository = FakeAnimeRepository()
-    rates_repository = FakeRatesRepository()
+    sync_job_repository = object()
 
     client = create_test_client(
         user_repository=user_repository,
-        anime_repository=anime_repository,
-        rates_repository=rates_repository,
+        sync_job_repository=sync_job_repository,
     )
 
     response = client.post(
         f"/users/{USER_ID}/sync",
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 202
+    assert response.json() == {
+        "id": 42,
+        "user_id": USER_ID,
+        "status": "pending",
+        "created_at": "2026-08-03T10:00:00Z",
+        "started_at": None,
+        "finished_at": None,
+        "error_code": None,
+        "error_message": None,
+    }
 
-    response_data = response.json()
-
-    assert response_data["id"] == USER_ID
-    assert response_data["created_at"] == ("2026-08-03T10:00:00Z")
-    assert response_data["last_synced_at"] is not None
-
-    assert rates_repository.deleted_user_id == USER_ID
-    assert rates_repository.saved_rows is not None
-    assert len(rates_repository.saved_rows) == 1
-    assert rates_repository.saved_rows[0]["anime_id"] == 1
-    assert rates_repository.saved_rows[0]["rating"] == 8
+    assert captured["user_id"] == USER_ID
+    assert captured["user_repository"] is user_repository
+    assert captured["sync_job_repository"] is sync_job_repository
 
 
-def test_sync_missing_user_returns_404():
-    repository = FakeUserRepository()
+def test_request_user_sync_returns_404_for_missing_user(
+    monkeypatch,
+):
+    def fake_enqueue_sync_job(**kwargs):
+        raise UserNotFoundError(f"Пользователь {USER_ID} не найден.")
+
+    monkeypatch.setattr(
+        users_router_module,
+        "enqueue_sync_job",
+        fake_enqueue_sync_job,
+    )
+
     client = create_test_client(
-        user_repository=repository,
+        user_repository=FakeUserRepository(),
     )
 
     response = client.post(
-        "/users/2147483647/sync",
+        f"/users/{USER_ID}/sync",
     )
 
     assert response.status_code == 404
     assert response.json() == {
-        "detail": ("Пользователь 2147483647 не найден."),
+        "detail": f"Пользователь {USER_ID} не найден.",
     }
 
 
@@ -416,3 +437,37 @@ def test_get_recommendations_rejects_non_positive_user_id():
     )
 
     assert response.status_code == 422
+
+
+def test_get_user_sync_returns_latest_job(monkeypatch):
+    job = SimpleNamespace(
+        id=42,
+        user_id=USER_ID,
+        status=SyncJobStatus.COMPLETED.value,
+        created_at=CREATED_AT,
+        started_at=CREATED_AT,
+        finished_at=CREATED_AT,
+        error_code=None,
+        error_message=None,
+    )
+
+    monkeypatch.setattr(
+        users_router_module,
+        "get_latest_sync_job",
+        lambda **kwargs: job,
+    )
+
+    client = create_test_client(
+        user_repository=FakeUserRepository(
+            user=make_user(),
+        ),
+        sync_job_repository=object(),
+    )
+
+    response = client.get(
+        f"/users/{USER_ID}/sync",
+    )
+
+    assert response.status_code == 200
+    assert response.json()["id"] == 42
+    assert response.json()["status"] == "completed"

@@ -24,12 +24,6 @@ from shiki_recsys.inference.artifact_loader import (
     load_current_model_artifacts,
 )
 from shiki_recsys.inference.runtime import InferenceState
-from shiki_recsys.integrations.shikimori.client import (
-    ShikimoriClient,
-)
-from shiki_recsys.integrations.shikimori.rate_limiter import (
-    ShikimoriRateLimiter,
-)
 
 
 @asynccontextmanager
@@ -62,27 +56,13 @@ async def lifespan(
         serving_config=serving_config,
     )
 
-    limiter = ShikimoriRateLimiter(
-        min_interval_seconds=(settings.shikimori_min_interval_seconds),
-    )
-
-    shikimori_client = ShikimoriClient(
-        graphql_url=settings.shikimori_graphql_url,
-        user_agent=settings.shikimori_user_agent,
-        limiter=limiter,
-        timeout_seconds=(settings.shikimori_timeout_seconds),
-        max_retries=settings.shikimori_max_retries,
-    )
-
     app.state.engine = engine
     app.state.session_factory = session_factory
-    app.state.shikimori_client = shikimori_client
     app.state.inference = inference
 
     try:
         yield
     finally:
-        shikimori_client.close()
         engine.dispose()
 
 

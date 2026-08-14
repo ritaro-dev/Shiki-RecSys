@@ -9,12 +9,7 @@ from pydantic_settings import (
 
 
 class Settings(BaseSettings):
-    """
-    Настройки проекта.
-
-    Значения можно переопределить через переменные
-    окружения или локальный файл .env.
-    """
+    """Store application settings loaded from environment variables."""
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -39,6 +34,10 @@ class Settings(BaseSettings):
 
     shikimori_min_interval_seconds: float = 0.8
 
+    # Synchronization worker
+    sync_worker_poll_interval_seconds: float = 1.0
+    sync_job_stale_after_seconds: float = 3600.0
+
     # Model artifacts
     artifacts_dir: Path = Path("artifacts")
 
@@ -51,8 +50,10 @@ class Settings(BaseSettings):
         self,
     ) -> dict[str, object]:
         """
-        Возвращает настройки подключения в формате,
-        который принимает psycopg2.connect.
+        Return database connection arguments for psycopg2.
+
+        Returns:
+            PostgreSQL connection arguments.
         """
 
         return {
@@ -67,7 +68,10 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """
-    Возвращает один общий объект настроек.
+    Return cached application settings.
+
+    Returns:
+        Application settings.
     """
 
     return Settings()
