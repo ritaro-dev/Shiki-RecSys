@@ -13,7 +13,7 @@ from shiki_recsys.model_artifacts import ArtifactInferenceConfig
 
 @dataclass(frozen=True)
 class RecommendationResult:
-    """Хранит результат recommendation inference."""
+    """Store the result of recommendation inference."""
 
     state: UserState
     recommendations: pd.DataFrame
@@ -23,26 +23,26 @@ def build_recommendations(
     *,
     user_id: int,
     interactions: pd.DataFrame,
-    user_exists: bool,
+    user_exists: bool | None,
     history_synced: bool,
     bundle: ModelBundle,
     artifact_config: ArtifactInferenceConfig,
     serving_config: RecommendationServingConfig,
 ) -> RecommendationResult:
     """
-    Формирует рекомендации пользователя.
+    Build recommendations for a user.
 
     Args:
-        user_id: Идентификатор пользователя.
-        interactions: Подготовленная локальная история пользователя.
-        user_exists: Подтверждено ли существование пользователя.
-        history_synced: Была ли история успешно синхронизирована.
-        bundle: Загруженный набор моделей.
-        artifact_config: Inference-параметры model artifact.
-        serving_config: Параметры recommendation serving.
+        user_id: Shikimori user ID.
+        interactions: Prepared local interaction history.
+        user_exists: Whether the user's existence on Shikimori is confirmed.
+        history_synced: Whether the user's history was successfully synchronized.
+        bundle: Loaded inference model bundle.
+        artifact_config: Artifact-bound inference configuration.
+        serving_config: Recommendation serving configuration.
 
     Returns:
-        Состояние пользователя и финальные рекомендации.
+        Recommendation result with the resolved user state.
     """
     interaction_count = len(interactions)
 

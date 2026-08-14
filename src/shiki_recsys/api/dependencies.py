@@ -12,6 +12,7 @@ from shiki_recsys.database.repositories.user_rate_svd_repository import (
 from shiki_recsys.database.repositories.user_repository import (
     UserRepository,
 )
+from shiki_recsys.inference.runtime import InferenceState
 from shiki_recsys.integrations.shikimori.client import (
     ShikimoriClient,
 )
@@ -52,3 +53,18 @@ def get_anime_repository() -> AnimeRepository:
 
 def get_rates_repository() -> UserRateSVDRepository:
     return UserRateSVDRepository()
+
+
+def get_inference_state(
+    request: Request,
+) -> InferenceState:
+    """
+    Return the inference state loaded at application startup.
+
+    Args:
+        request: Current FastAPI request.
+
+    Returns:
+        Long-lived recommendation inference state.
+    """
+    return request.app.state.inference

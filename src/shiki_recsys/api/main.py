@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -12,11 +12,18 @@ from shiki_recsys.api.routers.health import (
 from shiki_recsys.api.routers.users import (
     router as users_router,
 )
+from shiki_recsys.config.inference import (
+    build_recommendation_serving_config,
+)
 from shiki_recsys.config.settings import get_settings
 from shiki_recsys.database.session import (
     create_database_engine,
     create_session_factory,
 )
+from shiki_recsys.inference.artifact_loader import (
+    load_current_model_artifacts,
+)
+from shiki_recsys.inference.runtime import InferenceState
 from shiki_recsys.integrations.shikimori.client import (
     ShikimoriClient,
 )
@@ -28,16 +35,32 @@ from shiki_recsys.integrations.shikimori.rate_limiter import (
 @asynccontextmanager
 async def lifespan(
     app: FastAPI,
-) -> AsyncIterator[None]:
+) -> AsyncGenerator[None, None]:
     """
-    Создаёт общие ресурсы при запуске API
-    и закрывает их при остановке.
+    Manage application-wide resources.
+
+    Args:
+        app: FastAPI application instance.
+
+    Yields:
+        Control while application resources are available.
     """
 
     settings = get_settings()
+    serving_config = build_recommendation_serving_config(settings)
 
     engine = create_database_engine(settings)
     session_factory = create_session_factory(engine)
+
+    bundle, metadata = load_current_model_artifacts(
+        artifacts_dir=settings.artifacts_dir,
+    )
+
+    inference = InferenceState(
+        bundle=bundle,
+        metadata=metadata,
+        serving_config=serving_config,
+    )
 
     limiter = ShikimoriRateLimiter(
         min_interval_seconds=(settings.shikimori_min_interval_seconds),
@@ -54,6 +77,7 @@ async def lifespan(
     app.state.engine = engine
     app.state.session_factory = session_factory
     app.state.shikimori_client = shikimori_client
+    app.state.inference = inference
 
     try:
         yield
@@ -64,7 +88,10 @@ async def lifespan(
 
 def create_app() -> FastAPI:
     """
-    Создаёт и настраивает FastAPI-приложение.
+    Create and configure the FastAPI application.
+
+    Returns:
+        Configured FastAPI application.
     """
 
     app = FastAPI(

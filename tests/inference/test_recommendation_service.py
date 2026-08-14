@@ -42,11 +42,12 @@ def _bundle() -> ModelBundle:
     ("user_exists", "history_synced", "expected_state"),
     [
         (False, False, UserState.USER_NOT_FOUND),
+        (None, False, UserState.NOT_SYNCED),
         (True, False, UserState.NOT_SYNCED),
     ],
 )
 def test_build_recommendations_returns_empty_for_unavailable_user_state(
-    user_exists: bool,
+    user_exists: bool | None,
     history_synced: bool,
     expected_state: UserState,
     artifact_config: ArtifactInferenceConfig,

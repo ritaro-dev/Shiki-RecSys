@@ -5,16 +5,24 @@ from sqlalchemy.orm import Session
 
 from shiki_recsys.api.dependencies import (
     get_anime_repository,
+    get_inference_state,
     get_rates_repository,
     get_session,
     get_shikimori_client,
     get_user_repository,
+)
+from shiki_recsys.api.schemas.recommendations import (
+    RecommendationItemResponse,
+    RecommendationsResponse,
 )
 from shiki_recsys.api.schemas.users import (
     CreateUserRequest,
     UserResponse,
 )
 from shiki_recsys.application.add_user import add_user
+from shiki_recsys.application.get_recommendations import (
+    get_recommendations,
+)
 from shiki_recsys.application.sync_user import sync_user
 from shiki_recsys.database.repositories.anime_repository import (
     AnimeRepository,
@@ -25,6 +33,7 @@ from shiki_recsys.database.repositories.user_rate_svd_repository import (
 from shiki_recsys.database.repositories.user_repository import (
     UserRepository,
 )
+from shiki_recsys.inference.runtime import InferenceState
 from shiki_recsys.integrations.shikimori.client import (
     ShikimoriClient,
 )
@@ -119,3 +128,77 @@ def synchronize_user(
     )
 
     return UserResponse.model_validate(user)
+
+
+@router.get(
+    "/{user_id}/recommendations",
+    response_model=RecommendationsResponse,
+)
+def recommend_anime(
+    user_id: Annotated[
+        int,
+        Path(
+            gt=0,
+            description="Shikimori user ID.",
+        ),
+    ],
+    session: Annotated[
+        Session,
+        Depends(get_session),
+    ],
+    inference: Annotated[
+        InferenceState,
+        Depends(get_inference_state),
+    ],
+    user_repository: Annotated[
+        UserRepository,
+        Depends(get_user_repository),
+    ],
+    anime_repository: Annotated[
+        AnimeRepository,
+        Depends(get_anime_repository),
+    ],
+    rates_repository: Annotated[
+        UserRateSVDRepository,
+        Depends(get_rates_repository),
+    ],
+) -> RecommendationsResponse:
+    """
+    Return ranked anime recommendations for a user.
+
+    Args:
+        user_id: Shikimori user ID.
+        session: Database session.
+        inference: Loaded recommendation inference state.
+        user_repository: Repository for persisted users.
+        anime_repository: Repository for anime catalog metadata.
+        rates_repository: Repository for persisted interactions.
+
+    Returns:
+        Ranked anime recommendations and the resolved user state.
+    """
+    result = get_recommendations(
+        session=session,
+        user_repository=user_repository,
+        anime_repository=anime_repository,
+        rates_repository=rates_repository,
+        user_id=user_id,
+        bundle=inference.bundle,
+        artifact_config=inference.metadata.inference,
+        serving_config=inference.serving_config,
+    )
+
+    recommendations = [
+        RecommendationItemResponse(
+            anime_id=int(row.anime_id),
+            display_name=str(row.display_name),
+            rank=int(row.rank),
+        )
+        for row in result.recommendations.itertuples(index=False)
+    ]
+
+    return RecommendationsResponse(
+        user_id=user_id,
+        state=result.state,
+        recommendations=recommendations,
+    )

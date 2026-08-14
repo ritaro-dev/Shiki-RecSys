@@ -15,7 +15,7 @@ class UserState(StrEnum):
 
 def classify_user_state(
     *,
-    user_exists: bool,
+    user_exists: bool | None,
     history_synced: bool,
     interaction_count: int,
     supported_positive_count: int,
@@ -37,7 +37,7 @@ def classify_user_state(
     Returns:
         Состояние пользователя.
     """
-    if not user_exists:
+    if user_exists is False:
         return UserState.USER_NOT_FOUND
 
     if not history_synced:
