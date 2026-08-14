@@ -1,5 +1,6 @@
 import logging
 import time
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -29,6 +30,7 @@ from shiki_recsys.integrations.shikimori.client import (
 from shiki_recsys.integrations.shikimori.rate_limiter import (
     ShikimoriRateLimiter,
 )
+from shiki_recsys.sync_jobs import SyncJobErrorCode
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +44,7 @@ def run_worker(
     anime_repository: AnimeRepository,
     rates_repository: UserRateSVDRepository,
     poll_interval_seconds: float,
+    stale_after_seconds: float,
 ) -> None:
     """
     Continuously process pending synchronization jobs.
@@ -54,14 +57,35 @@ def run_worker(
         anime_repository: Repository for anime catalog data.
         rates_repository: Repository for persisted interactions.
         poll_interval_seconds: Delay when the queue is empty.
+        stale_after_seconds: Maximum running time before a job is considered stale.
 
     Raises:
-        ValueError: If the poll interval is not positive.
+        ValueError: If a worker timing interval is not positive.
     """
     if poll_interval_seconds <= 0:
         raise ValueError("poll_interval_seconds must be positive.")
 
+    if stale_after_seconds <= 0:
+        raise ValueError("stale_after_seconds must be positive.")
+
     while True:
+        now = datetime.now(UTC)
+
+        with session_factory() as session, session.begin():
+            recovered_count = sync_job_repository.fail_stale_running(
+                session=session,
+                stale_before=now - timedelta(seconds=stale_after_seconds),
+                finished_at=now,
+                error_code=SyncJobErrorCode.WORKER_TIMEOUT.value,
+                error_message="Synchronization worker did not finish the job in time.",
+            )
+
+        if recovered_count:
+            logger.warning(
+                "Marked %s stale synchronization job(s) as failed.",
+                recovered_count,
+            )
+
         with session_factory() as session:
             job = process_next_sync_job(
                 session=session,
@@ -123,6 +147,7 @@ def main() -> None:
             anime_repository=anime_repository,
             rates_repository=rates_repository,
             poll_interval_seconds=settings.sync_worker_poll_interval_seconds,
+            stale_after_seconds=settings.sync_job_stale_after_seconds,
         )
     except KeyboardInterrupt:
         logger.info("Synchronization worker stopped.")

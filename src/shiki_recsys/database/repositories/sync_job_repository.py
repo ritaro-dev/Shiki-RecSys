@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from shiki_recsys.database.models.sync_job import SyncJob
@@ -165,3 +165,42 @@ class SyncJobRepository:
         job.finished_at = finished_at
         job.error_code = error_code
         job.error_message = error_message
+
+    def fail_stale_running(
+        self,
+        session: Session,
+        *,
+        stale_before: datetime,
+        finished_at: datetime,
+        error_code: str,
+        error_message: str,
+    ) -> int:
+        """
+        Mark stale running synchronization jobs as failed.
+
+        Args:
+            session: Database session.
+            stale_before: Jobs started before this time are stale.
+            finished_at: Failure time.
+            error_code: Stable failure code.
+            error_message: Human-readable failure description.
+
+        Returns:
+            Number of failed jobs.
+        """
+        statement = (
+            update(SyncJob)
+            .where(
+                SyncJob.status == SyncJobStatus.RUNNING.value,
+                SyncJob.started_at < stale_before,
+            )
+            .values(
+                status=SyncJobStatus.FAILED.value,
+                finished_at=finished_at,
+                error_code=error_code,
+                error_message=error_message,
+            )
+        )
+
+        result = session.execute(statement)
+        return result.rowcount

@@ -14,3 +14,4 @@ class SyncJobErrorCode(StrEnum):
     """Represent stable synchronization failure codes."""
 
     SYNC_FAILED = "sync_failed"
+    WORKER_TIMEOUT = "worker_timeout"
