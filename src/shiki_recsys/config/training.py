@@ -232,8 +232,19 @@ class RankerConfig(BaseModel):
     )
 
 
+class EvaluationConfig(BaseModel):
+    """Store offline ranking evaluation parameters."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+    )
+
+    ranking_k: int = Field(gt=0)
+
+
 class TrainingConfig(BaseModel):
-    """Хранит полную конфигурацию обучения системы."""
+    """Store the complete recommendation training configuration."""
 
     model_config = ConfigDict(
         extra="forbid",
@@ -246,6 +257,7 @@ class TrainingConfig(BaseModel):
     retrievers: RetrieversConfig
     candidate_generation: CandidateGenerationConfig
     ranker: RankerConfig
+    evaluation: EvaluationConfig
 
 
 def load_training_config(

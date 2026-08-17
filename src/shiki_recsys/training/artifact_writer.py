@@ -3,7 +3,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import joblib
+import yaml
 
+from shiki_recsys.config.training import TrainingConfig
+from shiki_recsys.evaluation.model import ModelEvaluationResult
 from shiki_recsys.inference.model_bundle import ModelBundle
 from shiki_recsys.model_artifacts import ArtifactMetadata
 
@@ -13,20 +16,24 @@ def write_model_artifacts(
     artifacts_dir: Path,
     bundle: ModelBundle,
     metadata: ArtifactMetadata,
+    training_config: TrainingConfig,
+    evaluation: ModelEvaluationResult,
 ) -> Path:
     """
-    Сохраняет immutable-версию model artifacts.
+    Write an immutable model artifact version.
 
     Args:
-        artifacts_dir: Корневая директория artifacts.
-        bundle: Согласованный набор моделей.
-        metadata: Metadata версии artifacts.
+        artifacts_dir: Root artifact directory.
+        bundle: Production model bundle.
+        metadata: Artifact version metadata.
+        training_config: Configuration used for training and evaluation.
+        evaluation: Offline evaluation results before production refit.
 
     Returns:
-        Путь к сохранённой версии.
+        Path to the written artifact version.
 
     Raises:
-        FileExistsError: Если версия уже существует.
+        FileExistsError: If the artifact version already exists.
     """
     versions_dir = artifacts_dir / "versions"
     version_dir = versions_dir / metadata.artifact_version
@@ -65,6 +72,35 @@ def write_model_artifacts(
         (temp_path / "metadata.json").write_text(
             json.dumps(
                 metadata_payload,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        training_config_payload = training_config.model_dump(
+            mode="json",
+        )
+
+        (temp_path / "training_config.yaml").write_text(
+            yaml.safe_dump(
+                training_config_payload,
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+
+        evaluation_payload = {
+            "ranking_k": evaluation.ranking_k,
+            "recall_at_k": evaluation.recall_at_k,
+            "ndcg_at_k": evaluation.ndcg_at_k,
+            "evaluated_users": evaluation.evaluated_users,
+            "evaluation_protocol": "chronological_holdout",
+            "evaluated_before_production_refit": True,
+        }
+
+        (temp_path / "evaluation.json").write_text(
+            json.dumps(
+                evaluation_payload,
                 indent=2,
             ),
             encoding="utf-8",
