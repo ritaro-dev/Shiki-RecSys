@@ -8,7 +8,8 @@ import pandas as pd
 import pytest
 from scipy.sparse import csr_matrix
 
-from shiki_recsys.config.training import RankerConfig
+from shiki_recsys.config.training import RankerConfig, TrainingConfig
+from shiki_recsys.evaluation.model import ModelEvaluationResult
 from shiki_recsys.features.content_items import ContentItemFeatures
 from shiki_recsys.features.content_users import ContentUserProfiles
 from shiki_recsys.inference.artifact_loader import (
@@ -149,7 +150,7 @@ def test_load_model_artifacts_rejects_metadata_version_mismatch(
 def test_model_bundle_survives_artifact_round_trip(
     tmp_path: Path,
 ) -> None:
-    """Проверяет сериализацию и работу реального model bundle."""
+    """Verify serialization and inference of a real model bundle."""
     explicit_interactions = pd.DataFrame(
         {
             "user_id": [1, 1, 2, 2],
@@ -277,10 +278,24 @@ def test_model_bundle_survives_artifact_round_trip(
         ),
     )
 
+    training_config = Mock(spec=TrainingConfig)
+    training_config.model_dump.return_value = {
+        "random_seed": 42,
+    }
+
+    evaluation = ModelEvaluationResult(
+        ranking_k=20,
+        recall_at_k=0.2,
+        ndcg_at_k=0.25,
+        evaluated_users=2,
+    )
+
     write_model_artifacts(
         artifacts_dir=tmp_path,
         bundle=bundle,
         metadata=metadata,
+        training_config=training_config,
+        evaluation=evaluation,
     )
 
     loaded_bundle, loaded_metadata = load_model_artifacts(
