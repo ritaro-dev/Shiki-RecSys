@@ -74,6 +74,9 @@ def _build_valid_config() -> dict[str, Any]:
             "learning_rate": 0.05,
             "l2_leaf_reg": 5.0,
         },
+        "evaluation": {
+            "ranking_k": 20,
+        },
     }
 
 
@@ -141,6 +144,8 @@ def test_load_training_config_returns_typed_config(
     assert ranker_config.depth == 7
     assert ranker_config.learning_rate == 0.05
     assert ranker_config.l2_leaf_reg == 5.0
+
+    assert config.evaluation.ranking_k == 20
 
 
 def test_load_training_config_rejects_invalid_fraction_sum(
@@ -363,6 +368,32 @@ def test_load_training_config_rejects_invalid_als_parameters(
         ] = invalid_value
     else:
         config_content["retrievers"]["implicit_als"][parameter_name] = invalid_value
+
+    _write_config(
+        config_path,
+        yaml.safe_dump(
+            config_content,
+            sort_keys=False,
+        ),
+    )
+
+    with pytest.raises(ValidationError):
+        load_training_config(config_path)
+
+
+@pytest.mark.parametrize(
+    "ranking_k",
+    [0, -1],
+)
+def test_load_training_config_rejects_invalid_ranking_k(
+    tmp_path: Path,
+    ranking_k: int,
+) -> None:
+    """Reject non-positive ranking evaluation cutoffs."""
+    config_path = tmp_path / "training.yaml"
+    config_content = _build_valid_config()
+
+    config_content["evaluation"]["ranking_k"] = ranking_k
 
     _write_config(
         config_path,
