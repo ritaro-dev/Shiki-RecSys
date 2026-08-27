@@ -5,20 +5,11 @@ from pathlib import Path
 
 from shiki_recsys.config.settings import get_settings
 from shiki_recsys.config.training import load_training_config
-from shiki_recsys.database.repositories.anime_repository import (
-    AnimeRepository,
-)
-from shiki_recsys.database.repositories.user_rate_svd_repository import (
-    UserRateSVDRepository,
-)
 from shiki_recsys.database.session import (
     create_database_engine,
     create_session_factory,
 )
-from shiki_recsys.preprocessing.catalog import prepare_catalog
-from shiki_recsys.preprocessing.interactions import (
-    prepare_interactions,
-)
+from shiki_recsys.training.data import load_training_data
 from shiki_recsys.training.workflow import run_training_workflow
 
 logger = logging.getLogger(__name__)
@@ -54,18 +45,14 @@ def main() -> None:
     engine = create_database_engine(settings)
     session_factory = create_session_factory(engine)
 
-    anime_repository = AnimeRepository()
-    rates_repository = UserRateSVDRepository()
-
     try:
         logger.info("Loading training data from PostgreSQL.")
 
         with session_factory() as session:
-            interaction_rows = rates_repository.get_all(session)
-            catalog_rows = anime_repository.get_all(session)
+            data = load_training_data(session)
 
-        interactions = prepare_interactions(interaction_rows)
-        catalog = prepare_catalog(catalog_rows)
+        interactions = data.interactions
+        catalog = data.catalog
 
         logger.info(
             "Loaded %s interactions for %s users and %s anime.",
