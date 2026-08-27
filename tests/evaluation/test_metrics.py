@@ -2,7 +2,10 @@ import pytest
 
 from shiki_recsys.evaluation.metrics import (
     RankingMetricResult,
+    catalog_coverage_at_k,
+    hit_rate_at_k,
     ndcg_at_k,
+    precision_at_k,
     recall_at_k,
 )
 
@@ -384,3 +387,94 @@ def test_ndcg_at_k_rejects_only_empty_positive_sets() -> None:
             },
             k=10,
         )
+
+
+def test_precision_at_k_calculates_mean_across_users() -> None:
+    recommendations_by_user = {
+        1: [10, 20, 30],
+        2: [40, 50, 60],
+    }
+
+    positive_items_by_user = {
+        1: {20, 30},
+        2: {40, 70},
+    }
+
+    result = precision_at_k(
+        recommendations_by_user,
+        positive_items_by_user,
+        k=3,
+    )
+
+    assert result == RankingMetricResult(
+        value=0.5,
+        evaluated_users=2,
+    )
+
+
+def test_precision_at_k_uses_k_as_denominator() -> None:
+    result = precision_at_k(
+        recommendations_by_user={
+            1: [10],
+        },
+        positive_items_by_user={
+            1: {10},
+        },
+        k=5,
+    )
+
+    assert result == RankingMetricResult(
+        value=0.2,
+        evaluated_users=1,
+    )
+
+
+def test_hit_rate_at_k_calculates_fraction_of_users_with_hits() -> None:
+    result = hit_rate_at_k(
+        recommendations_by_user={
+            1: [10, 20],
+            2: [30, 40],
+        },
+        positive_items_by_user={
+            1: {20},
+            2: {50},
+        },
+        k=2,
+    )
+
+    assert result == RankingMetricResult(
+        value=0.5,
+        evaluated_users=2,
+    )
+
+
+def test_catalog_coverage_at_k_counts_unique_recommended_items() -> None:
+    result = catalog_coverage_at_k(
+        recommendations_by_user={
+            1: [10, 20, 30],
+            2: [20, 40, 50],
+        },
+        catalog_size=10,
+        k=2,
+    )
+
+    assert result == RankingMetricResult(
+        value=0.3,
+        evaluated_users=2,
+    )
+
+
+def test_catalog_coverage_at_k_uses_only_first_k_items() -> None:
+    result = catalog_coverage_at_k(
+        recommendations_by_user={
+            1: [10, 20, 30],
+            2: [40, 50, 60],
+        },
+        catalog_size=10,
+        k=1,
+    )
+
+    assert result == RankingMetricResult(
+        value=0.2,
+        evaluated_users=2,
+    )
