@@ -13,7 +13,7 @@ retrievers:
   explicit_svd:
     min_item_explicit_ratings: 5
     n_factors: 64
-    n_epochs: 15
+    n_epochs: 20
     biased: true
     learning_rate: 0.015
     regularization: 0.10
