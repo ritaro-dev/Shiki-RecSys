@@ -165,3 +165,159 @@ def ndcg_at_k(
         value=(sum(user_ndcg_values) / len(user_ndcg_values)),
         evaluated_users=len(user_ndcg_values),
     )
+
+
+def precision_at_k(
+    recommendations_by_user: Mapping[
+        int,
+        Sequence[int],
+    ],
+    positive_items_by_user: Mapping[
+        int,
+        Collection[int],
+    ],
+    *,
+    k: int,
+) -> RankingMetricResult:
+    """
+    Calculate mean Precision@K across users.
+
+    Args:
+        recommendations_by_user: Ranked recommendations for each user.
+        positive_items_by_user: Positive target items for each user.
+        k: Number of top recommendations to evaluate.
+
+    Returns:
+        Precision@K and the number of evaluated users.
+
+    Raises:
+        ValueError: If k is invalid or no users have positive target items.
+    """
+    if k <= 0:
+        raise ValueError("k должен быть больше 0.")
+
+    user_precisions: list[float] = []
+
+    for user_id, positive_items in positive_items_by_user.items():
+        target_items = set(positive_items)
+
+        if not target_items:
+            continue
+
+        recommendations = recommendations_by_user.get(
+            user_id,
+            (),
+        )
+
+        top_k_items = recommendations[:k]
+
+        relevant_recommendations = set(top_k_items).intersection(target_items)
+
+        user_precisions.append(len(relevant_recommendations) / k)
+
+    if not user_precisions:
+        raise ValueError("Нет пользователей с положительными целевыми объектами.")
+
+    return RankingMetricResult(
+        value=sum(user_precisions) / len(user_precisions),
+        evaluated_users=len(user_precisions),
+    )
+
+
+def hit_rate_at_k(
+    recommendations_by_user: Mapping[
+        int,
+        Sequence[int],
+    ],
+    positive_items_by_user: Mapping[
+        int,
+        Collection[int],
+    ],
+    *,
+    k: int,
+) -> RankingMetricResult:
+    """
+    Calculate HitRate@K across users.
+
+    Args:
+        recommendations_by_user: Ranked recommendations for each user.
+        positive_items_by_user: Positive target items for each user.
+        k: Number of top recommendations to evaluate.
+
+    Returns:
+        HitRate@K and the number of evaluated users.
+
+    Raises:
+        ValueError: If k is invalid or no users have positive target items.
+    """
+    if k <= 0:
+        raise ValueError("k должен быть больше 0.")
+
+    user_hits: list[float] = []
+
+    for user_id, positive_items in positive_items_by_user.items():
+        target_items = set(positive_items)
+
+        if not target_items:
+            continue
+
+        recommendations = recommendations_by_user.get(
+            user_id,
+            (),
+        )
+
+        top_k_items = recommendations[:k]
+
+        user_hits.append(float(bool(set(top_k_items).intersection(target_items))))
+
+    if not user_hits:
+        raise ValueError("Нет пользователей с положительными целевыми объектами.")
+
+    return RankingMetricResult(
+        value=sum(user_hits) / len(user_hits),
+        evaluated_users=len(user_hits),
+    )
+
+
+def catalog_coverage_at_k(
+    recommendations_by_user: Mapping[
+        int,
+        Sequence[int],
+    ],
+    *,
+    catalog_size: int,
+    k: int,
+) -> RankingMetricResult:
+    """
+    Calculate catalog coverage of top-K recommendations.
+
+    Args:
+        recommendations_by_user: Ranked recommendations for each user.
+        catalog_size: Number of recommendable items in the catalog.
+        k: Number of top recommendations to evaluate.
+
+    Returns:
+        Catalog coverage and the number of evaluated users.
+
+    Raises:
+        ValueError: If k or catalog_size is invalid or no users are provided.
+    """
+    if k <= 0:
+        raise ValueError("k должен быть больше 0.")
+
+    if catalog_size <= 0:
+        raise ValueError("catalog_size должен быть больше 0.")
+
+    if not recommendations_by_user:
+        raise ValueError("Нет пользователей для расчёта coverage.")
+
+    recommended_items = {
+        anime_id
+        for recommendations in recommendations_by_user.values()
+        for anime_id in recommendations[:k]
+    }
+
+    return RankingMetricResult(
+        value=len(recommended_items) / catalog_size,
+        evaluated_users=len(recommendations_by_user),
+    )

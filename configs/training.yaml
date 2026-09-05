@@ -13,7 +13,7 @@ retrievers:
   explicit_svd:
     min_item_explicit_ratings: 5
     n_factors: 64
-    n_epochs: 15
+    n_epochs: 20
     biased: true
     learning_rate: 0.015
     regularization: 0.10
@@ -25,16 +25,16 @@ retrievers:
       rating_8_10: 2.0
       watching: 1.0
       rewatching: 1.0
-      completed: 0.5
-      planned: 0.5
+      completed: 0.25
+      planned: 0.25
       on_hold: 0.0
       rating_4_5: -1.0
       rating_1_3: -2.0
 
     factors: 96
-    regularization: 0.1
+    regularization: 0.5
     alpha: 1.0
-    iterations: 40
+    iterations: 20
 
   content_tfidf:
     max_positive_items: 50
