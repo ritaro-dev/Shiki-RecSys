@@ -1,6 +1,18 @@
 # Shiki RecSys — Hybrid Anime Recommendation System
 
-A personal **machine learning / recommender systems engineering project** that generates personalized anime recommendations for [Shikimori](https://shikimori.one/) users.
+## Кратко о проекте (RU)
+
+**Shiki RecSys** — персональный проект по разработке рекомендательной системы аниме для пользователей [Shikimori](https://shikimori.io/). Система построена по двухэтапной архитектуре: кандидаты собираются четырьмя методами (**Popularity, SVD, ALS, TF-IDF**), после чего ранжируются моделью **CatBoostRanker**.
+
+Реализованы предобработка взаимодействий, генерация признаков для ранжирования, хронологическое разделение данных и офлайн-оценка с помощью **Recall@20** и **NDCG@20**. Для получения рекомендаций и синхронизации пользовательских историй предусмотрен **FastAPI**; данные хранятся в **PostgreSQL**.
+
+**Стек:** Python, pandas, NumPy, scikit-learn, Surprise, implicit, CatBoost, FastAPI, SQLAlchemy, PostgreSQL, pytest, GitHub Actions.
+
+> **Статус:** проект находится в разработке. В репозитории есть исходный код моделей и API, но отсутствуют подготовленные данные, обученные артефакты и готовый публичный демозапуск.
+
+---
+
+A personal **machine learning / recommender systems engineering project** that generates personalized anime recommendations for [Shikimori](https://shikimori.io/) users.
 
 The system implements a two-stage recommendation pipeline: **candidate retrieval** from four complementary models, followed by **learning-to-rank with CatBoost**. It also includes offline evaluation, a PostgreSQL-backed data layer, and a FastAPI service for recommendations and user history synchronization.
 
